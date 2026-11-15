@@ -49,9 +49,9 @@ script passes against all three.
 | switch 1 | `Altitude position (arcmin)`, read only |
 | `GetSwitchValue` | position in arcminutes from the board's zero; `PropertyNotImplemented` (0x400) while the board has no factors |
 | `MinSwitchValue`, `MaxSwitchValue` | −10000, 10000 |
-| `SwitchStep` | arcminutes per motor step, or 0 while not calibrated |
+| `SwitchStep` | 1/64 arcminute, fixed: ISwitchV3 wants a step above 0 that divides the range exactly (ConformU checks it), so the real resolution is reported in `Info` instead |
 | `CanWrite`, `GetSwitch`, `SetSwitch*` | false / not implemented |
-| `DeviceState` | empty list while disconnected; `TimeStamp` plus the two positions when calibrated |
+| `DeviceState` | empty list while disconnected; otherwise `TimeStamp`, the two `GetSwitchValue{n}` when calibrated and `StateChangeComplete{n}` true: only operational member names, as ConformU requires |
 
 The two switches exist so that a client that knows nothing about the actions still shows
 something sensible. Nothing moves through them.
@@ -131,7 +131,9 @@ reply; the status poll (`?`) never overlaps another command.
 2. `?` → firmware `V` for `deviceVersion`.
 3. `$M?` → `maxMove` (120 if plain `ok`).
 4. `$R?` → tier 1 available if framed, else `tiers: [2]`.
-5. `$K?` → factors; `resolution` and positions available when `state:done`.
+5. `$K?` → factors; calibrated when both axes have a factor, measured by the board
+   (`state:done`) or entered by the host with `$F=` (`state:pushed`, sign 0, firmware
+   1.3.7): `resolution`, positions and `Move` are available with either.
 
 Connect takes under two seconds. It never homes or calibrates.
 
@@ -148,12 +150,16 @@ Refusals, decided before anything moves:
 
 | Case | Board | Alpaca |
 |---|---|---|
-| not calibrated | `$R=` answers `error`; `$K?` not `done` | `InvalidOperation` 0x40B, "not calibrated: run an alignment with the controller first, or enter the factors" |
+| not calibrated | `$R=` answers `error`; `$K?` has no factor for an axis | `InvalidOperation` 0x40B, "not calibrated: run an alignment with the controller first, or enter the factors" |
 | \|x\| > maxMove, or not a number | `error` | `InvalidValue` 0x401 |
-| an axis already moving | `error` | `InvalidOperation` 0x40B |
+| an axis already moving, a calibration running | `error` | `InvalidOperation` 0x40B |
 | link lost | no reply | the HTTP request fails (503 / connection closed), never an Alpaca error |
 
-The reply `arcmin` is x rounded to whole steps, computed by the driver from the factor.
+The reply `arcmin` is x rounded to whole steps, computed by the driver from the factor
+(`$R?` reports the steps commanded, backlash legs included, so it is not the net motion).
+The driver then polls `$R?` with every `Status` until the board reports `done` or `failed`:
+`moving` adds to the axis' `moving`, `failed` becomes its `fault`, and `idle` (the board
+restarted) a fault "the board lost the move". `Stop` and `Home` clear both faults.
 
 A `Move` while a Tier 2 alignment is running ends the alignment, as hand moves do in the
 protocol; the `alignment` block then reads `failed` with reason "interrupted by a move".
@@ -188,8 +194,8 @@ within one session; the host's sign conventions never reach the board.
 ### 4.5 Polling
 
 Clients poll `Status` up to four times a second. Each `Status` costs the driver one `?`
-and, during Tier 2, one `$L?`; after a failed `Move`, one `$R?`. The driver may answer
-from a cache no older than 250 ms.
+and, during Tier 2, one `$L?`; while a `Move` is pending, one `$R?`. The driver may answer
+from a cache no older than 250 ms; a `Move` drops the cache so the next poll sees the motion.
 
 ## 5. Firmware additions (protocol 1, optional commands)
 
@@ -198,7 +204,9 @@ Found by asking, like the other optional commands: a plain `ok` means not implem
 | Command | Reply | Meaning |
 |---|---|---|
 | `$R=<az>,<alt>` | `ok` or `error` | Move both axes by the given arcminutes, with the board's factors and backlash compensation. `error` when not calibrated, when a value is not a number or exceeds the move cap, or when an axis is moving. Ends an alignment the host is feeding. |
-| `$R?` | `<R\|state:idle\|moving\|done\|failed\|az:<arcmin>\|alt:<arcmin>\|reason:...\|>` | State of the last `$R=`: the arcminutes actually commanded per axis, and why it failed (`stall`, `travel`, `timeout`, `stopped`). `idle` when no `$R=` was ever sent. |
+| `$R?` | `<R\|state:idle\|moving\|done\|failed\|az:<arcmin>\|alt:<arcmin>\|reason:...\|>` | State of the last `$R=`: the arcminutes actually commanded per axis (backlash legs included), and why it failed (`timeout AZ (X)`, `timeout ALT (Y)`, `stopped`). `idle` when no `$R=` was ever sent, or after a restart. |
+| `$K?` with `state:pushed` | `<K\|state:pushed\|x:<f>,0\|y:<f>,0\|...\|reason:factors from the host\|>` | Factors the host entered with `$F=` are reported as the board's factors, sign 0 (not measured), when the board has no measured result of its own. |
+| `$I?` | `<I\|mac:...\|board:...\|fw:...\|>` | Identity: MAC address, board type, firmware version. |
 
 Sign: positive azimuth turns the polar axis clockwise seen from above, positive altitude
 raises it. The board makes this true through the existing **motor direction** setting on
@@ -250,4 +258,13 @@ Everything in sections 3 to 5 is identical.
 2. The `fault` field: propose it to Lutz as a v0.2 addition to the draft, or keep it as an
    OAPA extension? Default: propose it.
 3. `$I?` for identity: in the same firmware release as `$R=`, or later? Default: same
-   release, it is small.
+   release, it is small. **Decided 15/11/2026: same release (1.3.7).**
+4. **Found on the bench, 15/11/2026, open.** `$M?` answers the largest cap `$M=` accepts
+   (180, a constant), not the cap the board enforces on `$R=`: its own page setting (30 by
+   default) or a cap a host pushed with `$M=` earlier in the session. A Tier 1 host reads
+   `maxMove: 180` and gets `error` from the board at 31. The Correctors plugin splits moves
+   above `maxMove` into pieces, so it needs the real bound. Proposal: firmware 1.3.7 adds
+   the enforced cap to `$M?` (`<M|max:180|cap:30|>`), `$R=` is bounded by the board's own
+   cap only (a pushed `$M=` stays the correction cap of a Tier 2 run), the driver reports
+   `maxMove` = `cap` and refuses a `Begin` `maxMove` above it; a board without `cap`
+   (1.3.6) keeps `max`.
