@@ -4,12 +4,12 @@ using OapaAlpaca.Core;
 namespace OapaAlpaca.Core.Tests;
 
 public class OapaDeviceConnectTest {
-    internal const string IdleStatus = "<Idle|MPos:0.00,0.00,0.00|V:1.3.6|>";
-    internal const string CalibratedK = "<K|state:done|x:12.34,+1|y:40.10,-1|xplay:4.20,4.35,U|yplay:-|reason:Calibration complete|>";
-    internal const string IdleK = "<K|state:idle|x:-|y:-|xplay:-|yplay:-|reason:|>";
+    public const string IdleStatus = "<Idle|MPos:0.00,0.00,0.00|V:1.3.6|>";
+    public const string CalibratedK = "<K|state:done|x:12.34,+1|y:40.10,-1|xplay:4.20,4.35,U|yplay:-|reason:Calibration complete|>";
+    public const string IdleK = "<K|state:idle|x:-|y:-|xplay:-|yplay:-|reason:|>";
 
     /// <summary>A scripted link with the whole connect sequence of a calibrated 1.3.6 board queued.</summary>
-    internal static ScriptedLink CalibratedBoard(string calibration = CalibratedK, string maxMove = "<M|max:180|>") =>
+    public static ScriptedLink CalibratedBoard(string calibration = CalibratedK, string maxMove = "<M|max:180|>") =>
         new ScriptedLink()
             .Expect("$P?", "<P|protocol:1|>")
             .Expect("?", IdleStatus, "ok")
