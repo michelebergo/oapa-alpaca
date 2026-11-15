@@ -255,7 +255,11 @@ public sealed class OapaDevice {
     private static OapaFrame Frame(string line, string command) =>
         OapaFrame.TryParse(line, out var frame) ? frame : throw new DeviceException(DeviceErrorKind.Driver, $"the board answered {command} with '{line}' instead of a frame");
 
-    /// <summary>One command and its reply lines, under the gate; a link failure becomes a Link error.</summary>
+    /// <summary>
+    /// One command and its reply lines, under the gate. A link failure becomes a Link error and closes
+    /// the link: a half-read reply left in the buffer would shift every later reply by one line, so
+    /// every call fails fast from then on until the client disconnects and connects again.
+    /// </summary>
     private string[] Exchange(string command, int replyLines = 1) {
         try {
             link.WriteLine(command);
@@ -265,6 +269,7 @@ public sealed class OapaDevice {
             }
             return lines;
         } catch (LinkException e) {
+            link.Close();
             throw new DeviceException(DeviceErrorKind.Link, e.Message);
         }
     }

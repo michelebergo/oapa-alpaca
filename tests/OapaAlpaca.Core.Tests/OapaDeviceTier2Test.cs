@@ -165,6 +165,28 @@ public class OapaDeviceTier2Test {
     }
 
     [Test]
+    public void After_a_link_failure_the_link_is_closed_so_stale_lines_cannot_shift_later_replies() {
+        var (d, link, clock) = Connected();
+        link.Expect("$T=1.00", "ok").Expect("$A=1", "ok");
+        d.Begin(1, null);
+        link.FailNext();
+        var first = () => d.Error(1, 1);
+        first.Should().Throw<DeviceException>().Where(e => e.Kind == DeviceErrorKind.Link);
+        link.IsOpen.Should().BeFalse();
+        var sent = link.Sent.Count;
+        clock.Advance(TimeSpan.FromSeconds(1));
+        var next = () => d.Status();
+        next.Should().Throw<DeviceException>().Where(e => e.Kind == DeviceErrorKind.Link);
+        link.Sent.Count.Should().Be(sent); // nothing more goes down a closed link
+        d.Connected.Should().BeTrue();
+        // The client decides to reconnect: the usual Disconnect and Connect sequence works.
+        d.Disconnect();
+        link.Expect("$P?", "<P|protocol:1|>").Expect("?", OapaDeviceConnectTest.IdleStatus, "ok").Expect("$M?", "<M|max:180|>").Expect("$K?", OapaDeviceConnectTest.CalibratedK);
+        d.Connect();
+        d.Connected.Should().BeTrue();
+    }
+
+    [Test]
     public void Methods_throw_not_connected_before_connect() {
         var d = new OapaDevice(new ScriptedLink(), "OAPA", new ManualClock());
         foreach (var act in new Action[] { () => d.Begin(1, null), () => d.Error(0, 0), () => d.End(), () => d.Stop(), () => d.Home(), () => d.Status() }) {
