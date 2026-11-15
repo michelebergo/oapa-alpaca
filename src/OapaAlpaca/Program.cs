@@ -59,8 +59,6 @@ int SwitchId(HttpRequest r) {
     return id;
 }
 
-double? Resolution(int id) => id == 0 ? device.Info.ResolutionAz : device.Info.ResolutionAlt;
-
 double Position(int id) {
     var status = device.Status();
     var position = id == 0 ? status.Az.Position : status.Alt.Position;
@@ -99,11 +97,16 @@ app.MapGet(Device + "devicestate", (HttpRequest r) => Alpaca.Run(r, () => {
     if (!device.Connected) {
         return Array.Empty<object>();
     }
-    var state = new List<object> { new { Name = "TimeStamp", Value = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) } };
+    // ISwitchV3 DeviceState carries only the operational members, under their member names.
+    var state = new List<object> { new { Name = "TimeStamp", Value = (object)DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) } };
     if (device.Info.Calibrated) {
         var status = device.Status();
-        state.Add(new { Name = SwitchName(0), Value = (object?)status.Az.Position });
-        state.Add(new { Name = SwitchName(1), Value = (object?)status.Alt.Position });
+        var positions = new[] { status.Az.Position, status.Alt.Position };
+        for (var id = 0; id < SwitchCount; id++) {
+            state.Add(new { Name = $"GetSwitch{id}", Value = (object)false });
+            state.Add(new { Name = $"GetSwitchValue{id}", Value = (object)(positions[id] ?? 0) });
+            state.Add(new { Name = $"StateChangeComplete{id}", Value = (object)true });
+        }
     }
     return state;
 }));
@@ -118,10 +121,17 @@ app.MapGet(Device + "getswitch", (HttpRequest r) => Alpaca.Run(r, () => { Switch
 app.MapGet(Device + "getswitchvalue", (HttpRequest r) => Alpaca.Run(r, () => Position(SwitchId(r))));
 app.MapGet(Device + "minswitchvalue", (HttpRequest r) => Alpaca.Run(r, () => { SwitchId(r); return -10000.0; }));
 app.MapGet(Device + "maxswitchvalue", (HttpRequest r) => Alpaca.Run(r, () => { SwitchId(r); return 10000.0; }));
-app.MapGet(Device + "switchstep", (HttpRequest r) => Alpaca.Run(r, () => Resolution(SwitchId(r)) ?? 0));
+// The switch step is a display granularity, not the motor resolution (that is Info.resolution): 1/64 arcminute
+// is exactly representable, so the ±10000 range is an exact multiple and ConformU's remainder check passes.
+app.MapGet(Device + "switchstep", (HttpRequest r) => Alpaca.Run(r, () => { SwitchId(r); return 1.0 / 64; }));
 app.MapGet(Device + "statechangecomplete", (HttpRequest r) => Alpaca.Run(r, () => { SwitchId(r); return true; }));
-foreach (var write in new[] { "setswitchname", "setswitch", "setswitchvalue", "setasync", "setasyncvalue" }) {
-    app.MapPut(Device + write, (HttpRequest r) => Alpaca.Fail(r, Alpaca.NotImplemented, $"{write} is not implemented: the switches are read only"));
+// Writes are refused as NotImplemented (the switches are read only), but an Id out of range is an InvalidValue first.
+foreach (var write in new[] { "setswitchname", "setswitch", "setswitchvalue", "setasync", "setasyncvalue", "cancelasync" }) {
+    app.MapPut(Device + write, (HttpRequest r) => Alpaca.Run(r, () => {
+        _ = device.Info;
+        SwitchId(r);
+        throw new DeviceException(DeviceErrorKind.NotImplemented, $"{write} is not implemented: the switches are read only");
+    }));
 }
 app.MapFallback(Device + "{member}", (HttpRequest r, string member) => Alpaca.Fail(r, Alpaca.NotImplemented, $"{member} is not implemented"));
 

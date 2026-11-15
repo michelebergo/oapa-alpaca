@@ -1,0 +1,164 @@
+
+12:11:33.925 ASCOM Universal Device Conformance Checker Version 4.5.3.56334, Build time: Fri 23 October 2026 16:49:09          
+12:11:33.929                                              
+12:11:33.929 Operating system is Debian GNU/Linux 13 (trixie), Processor is ARM 64bit, Application is 64bit.          
+12:11:33.929                                              
+12:11:33.929 Alpaca device:  (127.0.0.1:11113 Switch/0)          
+12:11:33.929                                              
+12:11:33.929 CreateDevice                        INFO     Creating Alpaca device: IP address: 127.0.0.1, IP Port: 11113, Alpaca device number: 0
+12:11:33.938 CreateDevice                        INFO     Alpaca device created OK
+12:11:33.938 CreateDevice                        INFO     Successfully created driver
+12:11:35.034 CreateDevice                        OK       Found a valid interface version: 3
+12:11:35.034 CreateDevice                        OK       Driver instance created successfully
+12:11:35.034                                              
+12:11:35.034 Connect to device                            
+12:11:35.170 Connected                           OK       Connected to device successfully using Connected = True
+12:11:35.678 Connected                           OK       Disconnected from device successfully using Connected = False
+12:11:35.735 Connect                             OK       Connected to device successfully using Connect()
+12:11:35.735                                              
+12:11:35.736 Common Driver Methods                        
+12:11:35.736 InterfaceVersion                    OK       3
+12:11:35.737 Connected                           OK       True
+12:11:35.747 Description                         OK       OAPA polar alignment base
+12:11:35.748 DriverInfo                          OK       OAPA Alpaca server 1.0.0
+12:11:35.750 DriverVersion                       OK       1.0.0
+12:11:35.751 Name                                OK       OAPA on rpipoe
+12:11:35.751                                              
+12:11:35.757 SupportedActions                    OK       Found action: PolarAlign:Info
+12:11:35.767 SupportedActions                    OK       Found action: PolarAlign:Status
+12:11:35.767 SupportedActions                    OK       Found action: PolarAlign:Move
+12:11:35.767 SupportedActions                    OK       Found action: PolarAlign:Stop
+12:11:35.768 SupportedActions                    OK       Found action: PolarAlign:Home
+12:11:35.768 SupportedActions                    OK       Found action: PolarAlign:Begin
+12:11:35.768 SupportedActions                    OK       Found action: PolarAlign:Error
+12:11:35.768 SupportedActions                    OK       Found action: PolarAlign:End
+12:11:35.768                                              
+12:11:35.768 Action                              INFO     Conform cannot test the Action method
+12:11:35.768                                              
+12:11:35.795 DeviceState                         OK       Received 7 operational state properties.
+12:11:35.796 DeviceState                         INFO     MaxSwitch: 2
+12:11:35.796 DeviceState                         OK         TimeStamp = 15/11/2026 11:11:35
+12:11:35.797 DeviceState                         OK         GetSwitch0 = False
+12:11:35.797 DeviceState                         OK         GetSwitchValue0 = 64.72068444891796
+12:11:35.797 DeviceState                         OK         StateChangeComplete0 = True
+12:11:35.797 DeviceState                         OK         GetSwitch1 = False
+12:11:35.797 DeviceState                         OK         GetSwitchValue1 = -32.537012113055184
+12:11:35.797 DeviceState                         OK         StateChangeComplete1 = True
+12:11:35.799 DeviceState                         OK       Found all expected operational properties
+12:11:35.799                                              
+12:11:35.799 Properties                                   
+12:11:35.801 MaxSwitch                           OK       2
+12:11:35.801                                              
+12:11:35.801 Methods                                      
+12:11:35.814 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID below 0 was used in method: CanWrite
+12:11:35.821 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID above MaxSwitch was used in method: CanWrite
+12:11:35.823 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID below 0 was used in method: GetSwitch
+12:11:35.824 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID above MaxSwitch was used in method: GetSwitch
+12:11:35.826 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID below 0 was used in method: GetSwitchDescription
+12:11:35.827 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID above MaxSwitch was used in method: GetSwitchDescription
+12:11:35.829 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID below 0 was used in method: GetSwitchName
+12:11:35.830 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID above MaxSwitch was used in method: GetSwitchName
+12:11:35.832 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID below 0 was used in method: GetSwitchValue
+12:11:35.833 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID above MaxSwitch was used in method: GetSwitchValue
+12:11:35.835 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID below 0 was used in method: MaxSwitchValue
+12:11:35.836 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID above MaxSwitch was used in method: MaxSwitchValue
+12:11:35.838 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID below 0 was used in method: MinSwitchValue
+12:11:35.839 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID above MaxSwitch was used in method: MinSwitchValue
+12:11:35.841 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID below 0 was used in method: SetSwitch
+12:11:35.843 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID above MaxSwitch was used in method: SetSwitch
+12:11:35.844 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID below 0 was used in method: SetSwitchValue
+12:11:35.845 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID above MaxSwitch was used in method: SetSwitchValue
+12:11:35.847 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID below 0 was used in method: SwitchStep
+12:11:35.848 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID above MaxSwitch was used in method: SwitchStep
+12:11:35.850 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID below 0 was used in method: CanAsync
+12:11:35.851 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID above MaxSwitch was used in method: CanAsync
+12:11:35.852 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID below 0 was used in method: CancelAsync
+12:11:35.853 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID above MaxSwitch was used in method: CancelAsync
+12:11:35.854 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID below 0 was used in method: SetAsync
+12:11:35.856 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID above MaxSwitch was used in method: SetAsync
+12:11:35.857 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID below 0 was used in method: SetAsyncValue
+12:11:35.858 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID above MaxSwitch was used in method: SetAsyncValue
+12:11:35.860 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID below 0 was used in method: StateChangeComplete
+12:11:35.861 SwitchNumber                        OK       Switch device threw an InvalidValueException when a switch ID above MaxSwitch was used in method: StateChangeComplete
+12:11:35.971 GetSwitchName                       OK       Found switch 0
+12:11:35.971 GetSwitchName                       OK         Name: Azimuth position (arcmin)
+12:11:35.971 GetSwitchDescription                OK         Description: Read only
+12:11:35.974 MinSwitchValue                      OK         Minimum: -10000
+12:11:35.975 MaxSwitchValue                      OK         Maximum: 10000
+12:11:35.976 SwitchStep                          OK         Step size: 0.015625
+12:11:35.976 SwitchStep                          OK         Step size is greater than zero
+12:11:35.976 SwitchStep                          OK         Step size is less than the range of possible values
+12:11:35.976 SwitchStep                          OK         The switch range is an integer multiple of the step size.
+12:11:35.978 CanWrite                            OK         CanWrite: False
+12:11:35.978 CanAsync                            OK         CanAsync: False
+12:11:36.480 GetSwitch                           OK         False
+12:11:36.993 GetSwitchValue                      OK         64.72068444891796
+12:11:36.995 SetSwitchName (0)                   OK       Optional member returned a NotImplementedException error.
+12:11:36.996 SetSwitch                           OK         CanWrite is False and a NotImplementedException was thrown
+12:11:36.997 SetSwitchValue                      OK         CanWrite is False and a NotImplementedException was thrown
+12:11:36.997 SetAsync/SetAsyncValue              INFO     Skipping asynchronous method tests because the switch cannot write or doesn't support asynchronous operation.
+12:11:36.997                                              
+12:11:36.998 GetSwitchName                       OK       Found switch 1
+12:11:36.998 GetSwitchName                       OK         Name: Altitude position (arcmin)
+12:11:36.998 GetSwitchDescription                OK         Description: Read only
+12:11:36.999 MinSwitchValue                      OK         Minimum: -10000
+12:11:37.000 MaxSwitchValue                      OK         Maximum: 10000
+12:11:37.000 SwitchStep                          OK         Step size: 0.015625
+12:11:37.000 SwitchStep                          OK         Step size is greater than zero
+12:11:37.000 SwitchStep                          OK         Step size is less than the range of possible values
+12:11:37.000 SwitchStep                          OK         The switch range is an integer multiple of the step size.
+12:11:37.001 CanWrite                            OK         CanWrite: False
+12:11:37.001 CanAsync                            OK         CanAsync: False
+12:11:37.503 GetSwitch                           OK         False
+12:11:38.017 GetSwitchValue                      OK         -32.537012113055184
+12:11:38.019 SetSwitchName (1)                   OK       Optional member returned a NotImplementedException error.
+12:11:38.021 SetSwitch                           OK         CanWrite is False and a NotImplementedException was thrown
+12:11:38.022 SetSwitchValue                      OK         CanWrite is False and a NotImplementedException was thrown
+12:11:38.023 SetAsync/SetAsyncValue              INFO     Skipping asynchronous method tests because the switch cannot write or doesn't support asynchronous operation.
+12:11:38.023                                              
+12:11:38.103                                              
+12:11:38.103 Disconnect from device                       
+12:11:38.110 Disconnect                          OK       Disconnected from device successfully using Disconnect()
+12:11:38.111                                              
+12:11:38.111 Conformance test has finished                
+12:11:38.111                                              
+12:11:38.111 Congratulations, no errors, warnings or issues found: your driver passes ASCOM validation!!          
+
+12:11:38.111 Timing Summary                               See Help for further information.
+12:11:38.111 Timing Summary                               FAST target response time: 0.1 seconds, (configuration and state reporting members).
+12:11:38.111 Timing Summary                               STANDARD target response time: 1.0 second, (property write and asynchronous initiators).
+12:11:38.111 Timing Summary                               EXTENDED target response time: 600.0 seconds, (synchronous methods, ImageArray and ImageArrayVariant).
+12:11:38.111 Timing Summary                               Conform is configured to report both good and bad timing outcomes.
+12:11:38.111                                              
+12:11:38.111 Connect                                      At 12:11:35.732 Connect                   0.054 seconds. ✓ (STANDARD)
+12:11:38.111 InterfaceVersion                             At 12:11:35.736 InterfaceVersion          0.000 seconds. ✓ (FAST)
+12:11:38.111 Connected                                    At 12:11:35.737 Connected                 0.001 seconds. ✓ (FAST)
+12:11:38.111 Description                                  At 12:11:35.747 Description               0.009 seconds. ✓ (FAST)
+12:11:38.111 DriverInfo                                   At 12:11:35.748 DriverInfo                0.001 seconds. ✓ (FAST)
+12:11:38.111 DriverVersion                                At 12:11:35.750 DriverVersion             0.001 seconds. ✓ (FAST)
+12:11:38.111 Name                                         At 12:11:35.751 Name                      0.001 seconds. ✓ (FAST)
+12:11:38.111 SupportedActions                             At 12:11:35.757 SupportedActions          0.006 seconds. ✓ (FAST)
+12:11:38.112 DeviceState                                  At 12:11:35.795 DeviceState               0.027 seconds. ✓ (FAST)
+12:11:38.112 MaxSwitch                                    At 12:11:35.800 MaxSwitch                 0.001 seconds. ✓ (FAST)
+12:11:38.112 SwitchName (0)                               At 12:11:35.970 SwitchName (0)            0.002 seconds. ✓ (FAST)
+12:11:38.112 GetSwitchDescription (0)                     At 12:11:35.971 GetSwitchDescription (0)  0.001 seconds. ✓ (FAST)
+12:11:38.112 MinSwitchValue (0)                           At 12:11:35.974 MinSwitchValue (0)        0.002 seconds. ✓ (FAST)
+12:11:38.112 MinSwitchValue (0)                           At 12:11:35.975 MinSwitchValue (0)        0.001 seconds. ✓ (FAST)
+12:11:38.112 SwitchStep (0)                               At 12:11:35.976 SwitchStep (0)            0.001 seconds. ✓ (FAST)
+12:11:38.112 CanWrite (0)                                 At 12:11:35.977 CanWrite (0)              0.001 seconds. ✓ (FAST)
+12:11:38.112 CanAsync (0)                                 At 12:11:35.978 CanAsync (0)              0.001 seconds. ✓ (FAST)
+12:11:38.112 GetSwitch (0)                                At 12:11:35.979 GetSwitch (0)             0.001 seconds. ✓ (FAST)
+12:11:38.112 MinSwitchValue (0)                           At 12:11:36.492 MinSwitchValue (0)        0.011 seconds. ✓ (FAST)
+12:11:38.112 SwitchName (1)                               At 12:11:36.998 SwitchName (1)            0.001 seconds. ✓ (FAST)
+12:11:38.112 GetSwitchDescription (1)                     At 12:11:36.998 GetSwitchDescription (1)  0.000 seconds. ✓ (FAST)
+12:11:38.112 MinSwitchValue (1)                           At 12:11:36.999 MinSwitchValue (1)        0.001 seconds. ✓ (FAST)
+12:11:38.112 MinSwitchValue (1)                           At 12:11:37.000 MinSwitchValue (1)        0.000 seconds. ✓ (FAST)
+12:11:38.112 SwitchStep (1)                               At 12:11:37.000 SwitchStep (1)            0.000 seconds. ✓ (FAST)
+12:11:38.112 CanWrite (1)                                 At 12:11:37.001 CanWrite (1)              0.000 seconds. ✓ (FAST)
+12:11:38.112 CanAsync (1)                                 At 12:11:37.001 CanAsync (1)              0.000 seconds. ✓ (FAST)
+12:11:38.112 GetSwitch (1)                                At 12:11:37.002 GetSwitch (1)             0.000 seconds. ✓ (FAST)
+12:11:38.112 MinSwitchValue (1)                           At 12:11:37.516 MinSwitchValue (1)        0.013 seconds. ✓ (FAST)
+12:11:38.112 Disconnect                                   At 12:11:38.109 Disconnect                0.004 seconds. ✓ (STANDARD)
+12:11:38.112                                              
+12:11:38.112 Congratulations, all members returned within their target response times!!          
+

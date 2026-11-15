@@ -38,7 +38,7 @@ public class SwitchHttpTest {
         (await client.Get("getswitchvalue", "Id=1")).GetProperty("Value").GetDouble().Should().BeApproximately(-401 / 40.10, 1e-9);
         (await client.Get("getswitchname", "Id=0")).GetProperty("Value").GetString().Should().Be("Azimuth position (arcmin)");
         (await client.Get("maxswitch")).GetProperty("Value").GetInt32().Should().Be(2);
-        (await client.Get("switchstep", "Id=1")).GetProperty("Value").GetDouble().Should().BeApproximately(1 / 40.10, 1e-9);
+        (await client.Get("switchstep", "Id=1")).GetProperty("Value").GetDouble().Should().Be(1.0 / 64);
     }
 
     [Test]
@@ -48,7 +48,54 @@ public class SwitchHttpTest {
         await client.Connect();
         factory.Link.Expect("?", OapaDeviceConnectTest.IdleStatus, "ok");
         (await client.Get("getswitchvalue", "Id=0")).ErrorNumber().Should().Be(0x400);
-        (await client.Get("switchstep", "Id=0")).GetProperty("Value").GetDouble().Should().Be(0);
+        (await client.Get("switchstep", "Id=0")).GetProperty("Value").GetDouble().Should().Be(1.0 / 64);
+    }
+
+    [TestCase(OapaDeviceConnectTest.CalibratedK)]
+    [TestCase(OapaDeviceConnectTest.IdleK)]
+    public async Task The_switch_range_is_an_integer_multiple_of_a_positive_step(string calibration) {
+        // ConformU's ISwitchV3 rule: (MaxSwitchValue - MinSwitchValue) / SwitchStep must be a whole number, and the step must be > 0.
+        using var factory = ServerFactory.WithCalibratedBoard(calibration);
+        var client = factory.CreateClient();
+        await client.Connect();
+        foreach (var id in new[] { "0", "1" }) {
+            var min = (await client.Get("minswitchvalue", $"Id={id}")).GetProperty("Value").GetDouble();
+            var max = (await client.Get("maxswitchvalue", $"Id={id}")).GetProperty("Value").GetDouble();
+            var step = (await client.Get("switchstep", $"Id={id}")).GetProperty("Value").GetDouble();
+            // 1/64 arcminute is exactly representable, so ConformU's floating-point remainder is exactly zero.
+            step.Should().Be(1.0 / 64);
+            ((max - min) % step).Should().Be(0, $"switch {id}: range {min}..{max} step {step}");
+            max.Should().Be(10000);
+            min.Should().Be(-10000);
+        }
+    }
+
+    [Test]
+    public async Task Device_state_lists_only_the_operational_switch_properties() {
+        // ISwitchV3 DeviceState: GetSwitch{n}, GetSwitchValue{n}, StateChangeComplete{n} and TimeStamp, nothing else (ConformU).
+        using var factory = ServerFactory.WithCalibratedBoard();
+        var client = factory.CreateClient();
+        (await client.Get("devicestate")).GetProperty("Value").GetArrayLength().Should().Be(0);
+        await client.Connect();
+        factory.Link.Expect("?", "<Idle|MPos:1234.00,-401.00,0.00|V:1.3.6|>", "ok");
+        var names = (await client.Get("devicestate")).GetProperty("Value").EnumerateArray().Select(e => e.GetProperty("Name").GetString()).ToList();
+        names.Should().Contain("TimeStamp").And.Contain("GetSwitchValue0").And.Contain("GetSwitchValue1")
+             .And.Contain("StateChangeComplete0").And.Contain("GetSwitch0");
+        names.Should().OnlyContain(n => n == "TimeStamp" || System.Text.RegularExpressions.Regex.IsMatch(n!, "^(GetSwitch|GetSwitchValue|StateChangeComplete)[01]$"));
+    }
+
+    [TestCase("setswitch")]
+    [TestCase("setswitchvalue")]
+    [TestCase("setasync")]
+    [TestCase("setasyncvalue")]
+    [TestCase("cancelasync")]
+    public async Task Writes_check_the_id_before_refusing(string member) {
+        using var factory = ServerFactory.WithCalibratedBoard();
+        var client = factory.CreateClient();
+        await client.Connect();
+        (await client.Put(member, ("Id", "2"), ("Value", "1"), ("State", "true"))).ErrorNumber().Should().Be(0x401);
+        (await client.Put(member, ("Id", "-1"), ("Value", "1"), ("State", "true"))).ErrorNumber().Should().Be(0x401);
+        (await client.Put(member, ("Id", "0"), ("Value", "1"), ("State", "true"))).ErrorNumber().Should().Be(0x400);
     }
 
     [Test]
