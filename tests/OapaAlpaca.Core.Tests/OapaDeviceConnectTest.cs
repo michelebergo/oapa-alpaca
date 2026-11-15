@@ -65,6 +65,14 @@ public class OapaDeviceConnectTest {
     }
 
     [Test]
+    public void The_cap_the_board_enforces_on_moves_is_the_max_move_when_the_board_reports_it() {
+        // Firmware 1.3.7: $M? carries the page's move cap, which bounds $R=; the 180 is only what $M= accepts.
+        var d = new OapaDevice(CalibratedBoard(maxMove: "<M|max:180|cap:30|>"), "OAPA", new ManualClock());
+        d.Connect();
+        d.Info.MaxMove.Should().Be(30);
+    }
+
+    [Test]
     public void A_board_without_the_move_cap_reports_120() {
         var d = new OapaDevice(CalibratedBoard(maxMove: "ok"), "OAPA", new ManualClock());
         d.Connect();

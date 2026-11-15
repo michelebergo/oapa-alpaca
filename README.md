@@ -52,6 +52,9 @@ point the page at `/dev/serial/by-id/...` so a re-enumerated USB converter keeps
   as a `fault` string on that axis until the next `Move` of the axis, `Stop` or `Home`.
 - Factors entered on the board's page or pushed by the controller count as a calibration:
   positions, resolution and `Move` are available with them.
+- `maxMove` is the move cap set on the board's page (firmware 1.3.7 reports it in `$M?`):
+  it bounds a `Move` and the `maxMove` of `Begin`, so a host can ask for smaller
+  corrections than the page allows, never larger.
 - Alpaca error numbers as in the contract; a lost link fails the request with HTTP 503.
 
 ## Tests
@@ -60,7 +63,7 @@ point the page at `/dev/serial/by-id/...` so a re-enumerated USB converter keeps
 dotnet test OapaAlpaca.slnx
 ```
 
-147 tests: the protocol frames, the links, the device engine against a scripted board, and
+150 tests: the protocol frames, the links, the device engine against a scripted board, and
 the HTTP surface through an in-memory host. No hardware needed.
 
 ## Bench
@@ -73,6 +76,11 @@ the HTTP surface through an in-memory host. No hardware needed.
   and that Stop ends a move within two seconds (the motors decelerate).
 - ConformU on the Switch: [docs/conformu](docs/conformu), 0 errors, 0 issues (4.5.3,
   server on a Raspberry Pi 5, board on USB).
+- Over WiFi the link waits up to 3 s for a reply: at a weak signal (-87 dBm on the bench)
+  single replies took up to 1 s. A lost link closes the TCP connection and the request
+  fails with 503; the client reconnects with Connected false then true. The board accepts
+  one TCP client at a time, so a second client (a terminal, N.I.N.A. on the same board)
+  takes the link away from the server.
 
 ## Licence
 

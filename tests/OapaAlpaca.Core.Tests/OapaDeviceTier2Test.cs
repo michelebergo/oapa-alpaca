@@ -69,6 +69,20 @@ public class OapaDeviceTier2Test {
     }
 
     [Test]
+    public void Begin_cannot_raise_the_cap_above_the_one_set_on_the_board() {
+        // A host may ask for smaller corrections than the page allows, never larger.
+        var link = OapaDeviceConnectTest.CalibratedBoard(maxMove: "<M|max:180|cap:30|>");
+        var d = new OapaDevice(link, "OAPA", new ManualClock());
+        d.Connect();
+        link.Sent.Clear();
+        var act = () => d.Begin(1, 31);
+        act.Should().Throw<DeviceException>().Where(e => e.Kind == DeviceErrorKind.InvalidValue);
+        link.Sent.Should().BeEmpty();
+        link.Expect("$T=1.00", "ok").Expect("$M=20", "ok").Expect("$A=1", "ok");
+        d.Begin(1, 20);
+    }
+
+    [Test]
     public void Error_sends_the_reading_and_refreshes_the_alignment_block() {
         var (d, link, _) = Connected();
         link.Expect("$T=1.50", "ok").Expect("$A=1", "ok");

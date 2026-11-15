@@ -54,6 +54,17 @@ public class OapaDeviceTier1Test {
     }
 
     [Test]
+    public void Move_beyond_the_cap_the_board_enforces_is_refused_before_sending() {
+        var link = OapaDeviceConnectTest.CalibratedBoard(maxMove: "<M|max:180|cap:30|>");
+        var d = new OapaDevice(link, "OAPA", new ManualClock());
+        d.Connect();
+        link.Sent.Clear();
+        var act = () => d.Move("az", 31);
+        act.Should().Throw<DeviceException>().Where(e => e.Kind == DeviceErrorKind.InvalidValue && e.Message.Contains("30.00"));
+        link.Sent.Should().BeEmpty();
+    }
+
+    [Test]
     public void Move_on_a_board_without_the_command_is_not_implemented() {
         var (d, link, _) = Connected(relative: "ok");
         var act = () => d.Move("az", 1);

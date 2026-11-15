@@ -51,7 +51,9 @@ public class TcpOapaLinkTest {
     }
 
     [Test]
-    public void A_silent_board_throws_a_link_exception_within_two_seconds() {
+    public void A_silent_board_throws_a_link_exception_within_a_few_seconds() {
+        // The link waits 3 s for a reply (a weak WiFi signal stretched single replies to 1 s on the
+        // bench), so a dead board is reported within that time and a slow one is not dropped.
         using var board = new FakeBoard(reply: null);
         using var link = new TcpOapaLink($"127.0.0.1:{board.Port}");
         link.Open();
@@ -59,7 +61,7 @@ public class TcpOapaLinkTest {
         var started = DateTime.UtcNow;
         var act = () => link.ReadLine();
         act.Should().Throw<LinkException>();
-        (DateTime.UtcNow - started).Should().BeLessThan(TimeSpan.FromSeconds(2));
+        (DateTime.UtcNow - started).Should().BeGreaterThan(TimeSpan.FromSeconds(2)).And.BeLessThan(TimeSpan.FromSeconds(5));
     }
 
     [Test]

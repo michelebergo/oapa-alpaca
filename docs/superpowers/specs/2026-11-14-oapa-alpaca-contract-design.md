@@ -95,8 +95,10 @@ also accepted by clients; use 0x40C).
 }
 ```
 
-- `maxMove`: the board's move cap from `$M?` (120 when the board has no `$M?`). It bounds
-  one `Move` call and the Tier 2 corrections alike.
+- `maxMove`: the cap the board enforces, `cap` in `$M?` (firmware 1.3.7: the setting on the
+  board's page); `max` on a board without `cap`, 120 on one without `$M?`. It bounds one
+  `Move` call and the `maxMove` of `Begin` alike: a host can ask for smaller corrections
+  than the page allows, never larger.
 - `resolution`: arcminutes per step from the calibration factors; 0 while not calibrated.
 - `range` is omitted: an OAPA board does not know its travel.
 - `tiers` contains 1 only when the board answers `$R?`; a board without it (firmware before
@@ -129,7 +131,7 @@ reply; the status poll (`?`) never overlaps another command.
 1. `$P?` → must answer `<P|protocol:N|>` with N ≥ 1; otherwise `Connect` fails with
    `DriverException` "not an OAPA alignment device".
 2. `?` → firmware `V` for `deviceVersion`.
-3. `$M?` → `maxMove` (120 if plain `ok`).
+3. `$M?` → `maxMove` from `cap`, else `max` (120 if plain `ok`).
 4. `$R?` → tier 1 available if framed, else `tiers: [2]`.
 5. `$K?` → factors; calibrated when both axes have a factor, measured by the board
    (`state:done`) or entered by the host with `$F=` (`state:pushed`, sign 0, firmware
@@ -259,7 +261,8 @@ Everything in sections 3 to 5 is identical.
    OAPA extension? Default: propose it.
 3. `$I?` for identity: in the same firmware release as `$R=`, or later? Default: same
    release, it is small. **Decided 15/11/2026: same release (1.3.7).**
-4. **Found on the bench, 15/11/2026, open.** `$M?` answers the largest cap `$M=` accepts
+4. **Found on the bench, 15/11/2026; decided the same day as proposed, in firmware 1.3.7
+   and the C# driver.** `$M?` answers the largest cap `$M=` accepts
    (180, a constant), not the cap the board enforces on `$R=`: its own page setting (30 by
    default) or a cap a host pushed with `$M=` earlier in the session. A Tier 1 host reads
    `maxMove: 180` and gets `error` from the board at 31. The Correctors plugin splits moves

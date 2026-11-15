@@ -22,6 +22,9 @@ public static class Alpaca {
     /// <summary>The last device error any member reported, for the setup page.</summary>
     public static string? LastError { get; private set; }
 
+    /// <summary>Where link failures are logged, with the first message of a chain that a later "is not open" would hide.</summary>
+    public static ILogger? Logger { get; set; }
+
     public static int ErrorNumber(DeviceErrorKind kind) => kind switch {
         DeviceErrorKind.NotImplemented => NotImplemented,
         DeviceErrorKind.InvalidValue => InvalidValue,
@@ -38,6 +41,7 @@ public static class Alpaca {
             return Json(Envelope(await body(), clientId, 0, ""));
         } catch (DeviceException e) when (e.Kind == DeviceErrorKind.Link) {
             // A dead link never answers with an Alpaca error: the request itself fails (spec 4.2).
+            Logger?.LogWarning("link failure on {Path}: {Message}", request.Path.Value, e.Message);
             LastError = e.Message;
             return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
         } catch (DeviceException e) {

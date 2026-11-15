@@ -13,6 +13,7 @@ if (!builder.Environment.IsEnvironment("Testing")) {
     builder.Services.AddHostedService<AlpacaDiscovery>();
 }
 var app = builder.Build();
+Alpaca.Logger = app.Logger;
 app.UseDefaultFiles();
 app.UseStaticFiles();
 

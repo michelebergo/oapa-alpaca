@@ -7,7 +7,11 @@ namespace OapaAlpaca.Core;
 /// <summary>The OAPA protocol over TCP, port 2323 by default (a WiFi board).</summary>
 public sealed class TcpOapaLink : IOapaLink {
     public const int DefaultPort = 2323;
-    private const int TimeoutMs = 1000;
+    // A board answers in about 20 ms, but WiFi retransmits at a weak signal stretch single replies:
+    // 110 polls at -87 dBm on the bench (15/11/2026) gave a median of 20 ms, a 95th percentile of
+    // 360 ms and one reply at 1.0 s, with the motors running or not. Three times that worst case
+    // keeps a dead board detected within seconds without dropping a live link on one slow reply.
+    private const int TimeoutMs = 3000;
 
     private readonly string host;
     private readonly int port;

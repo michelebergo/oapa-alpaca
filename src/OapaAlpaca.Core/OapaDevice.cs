@@ -80,8 +80,10 @@ public sealed class OapaDevice {
                     throw new DeviceException(DeviceErrorKind.Driver, $"{link.Description} is not an OAPA alignment device (no protocol version)");
                 }
                 var status = StatusFrame.Parse(Frame(Exchange("?", replyLines: 2)[0], "?"));
+                // $M? "max" is the largest cap $M= accepts; since firmware 1.3.7 "cap" is the cap the board
+                // enforces on a relative move (its page setting), and that is what bounds a Move and a Begin.
                 var maxMove = OapaFrame.TryParse(Exchange("$M?")[0], out var m) && m.Name == "M"
-                    ? OapaFrame.ParseNumber(m.Field("max"))
+                    ? OapaFrame.ParseNumber(m.Fields.TryGetValue("cap", out var cap) && cap.Length > 0 ? cap : m.Field("max"))
                     : DefaultMaxMove;
                 // A board with $R= answers $R? with a frame; an older one answers a plain "ok".
                 var canMove = OapaFrame.TryParse(Exchange("$R?")[0], out var r) && r.Name == "R";
