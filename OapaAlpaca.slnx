@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/OapaAlpaca.Core/OapaAlpaca.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/OapaAlpaca.Core.Tests/OapaAlpaca.Core.Tests.csproj" />
+  </Folder>
+</Solution>
