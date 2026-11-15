@@ -75,6 +75,36 @@ public class OapaDeviceConnectTest {
     }
 
     [Test]
+    public void Use_link_while_connected_is_an_invalid_operation() {
+        var d = new OapaDevice(CalibratedBoard(), "OAPA", new ManualClock());
+        d.Connect();
+        var act = () => d.UseLink(new ScriptedLink());
+        act.Should().Throw<DeviceException>().Where(e => e.Kind == DeviceErrorKind.InvalidOperation);
+    }
+
+    [Test]
+    public void Use_link_while_disconnected_closes_the_old_link_and_connects_through_the_new_one() {
+        var old = new ScriptedLink();
+        var d = new OapaDevice(old, "OAPA", new ManualClock());
+        var replacement = CalibratedBoard();
+        d.UseLink(replacement);
+        d.Connect();
+        d.Connected.Should().BeTrue();
+        d.LinkDescription.Should().Be("scripted");
+        replacement.Sent.Should().Equal("$P?", "?", "$M?", "$K?");
+        old.Sent.Should().BeEmpty();
+    }
+
+    [Test]
+    public void A_link_that_cannot_open_is_a_link_error() {
+        var link = new ScriptedLink { FailOpen = true };
+        var d = new OapaDevice(link, "OAPA", new ManualClock());
+        var act = () => d.Connect();
+        act.Should().Throw<DeviceException>().Where(e => e.Kind == DeviceErrorKind.Link && e.Message.Contains("cannot open"));
+        d.Connected.Should().BeFalse();
+    }
+
+    [Test]
     public void Disconnect_closes_the_link() {
         var link = CalibratedBoard();
         var d = new OapaDevice(link, "OAPA", new ManualClock());

@@ -19,6 +19,9 @@ public static class Alpaca {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = null };
     private static uint serverTransactionId;
 
+    /// <summary>The last device error any member reported, for the setup page.</summary>
+    public static string? LastError { get; private set; }
+
     public static int ErrorNumber(DeviceErrorKind kind) => kind switch {
         DeviceErrorKind.NotImplemented => NotImplemented,
         DeviceErrorKind.InvalidValue => InvalidValue,
@@ -35,8 +38,12 @@ public static class Alpaca {
             return Json(Envelope(await body(), clientId, 0, ""));
         } catch (DeviceException e) when (e.Kind == DeviceErrorKind.Link) {
             // A dead link never answers with an Alpaca error: the request itself fails (spec 4.2).
+            LastError = e.Message;
             return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
         } catch (DeviceException e) {
+            if (e.Kind is not (DeviceErrorKind.NotImplemented or DeviceErrorKind.ActionNotImplemented or DeviceErrorKind.NotConnected)) {
+                LastError = e.Message;
+            }
             return Json(Envelope(null, clientId, ErrorNumber(e.Kind), e.Message));
         }
     }

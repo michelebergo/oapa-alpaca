@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OAPA Alpaca server</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 2rem auto; max-width: 40rem; padding: 0 1rem; color: #222; }
+  h1 { font-size: 1.4rem; }
+  label { display: block; margin-top: .8rem; font-weight: 600; }
+  input, select { width: 100%; padding: .4rem; margin-top: .2rem; font-size: 1rem; }
+  button { margin-top: 1rem; padding: .5rem 1rem; font-size: 1rem; }
+  .state { margin-top: 1.5rem; padding: 1rem; background: #f3f3f3; border-radius: .4rem; font-family: monospace; white-space: pre-wrap; }
+  .note { color: #666; font-size: .9rem; }
+</style>
+</head>
+<body>
+<h1>OAPA Alpaca server</h1>
+<p class="note">Presents the OAPA board as an Alpaca Switch with the PolarAlign actions. Choose how the board is reached, save, then connect from your astronomy program.</p>
+
+<form id="config">
+  <label>Link
+    <select id="link">
+      <option value="tcp">Network (TCP, the board's WiFi address)</option>
+      <option value="serial">USB (serial port)</option>
+    </select>
+  </label>
+  <label id="addressLabel">Address
+    <input id="address" placeholder="192.168.1.40 or 192.168.1.40:2323">
+  </label>
+  <label id="portLabel" hidden>Serial port
+    <select id="port"></select>
+  </label>
+  <label>Device name
+    <input id="name" placeholder="OAPA">
+  </label>
+  <button type="submit">Save</button>
+  <span id="message" class="note"></span>
+</form>
+
+<div class="state" id="state">loading…</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let config = null;
+
+async function api(url, body) {
+  const r = await fetch(url, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+function showLinkFields() {
+  const serial = $('link').value === 'serial';
+  $('addressLabel').hidden = serial;
+  $('portLabel').hidden = !serial;
+}
+
+async function loadPorts(selected) {
+  const ports = await api('/api/ports');
+  $('port').innerHTML = '';
+  for (const p of ports) {
+    const o = document.createElement('option');
+    o.value = o.textContent = p;
+    $('port').appendChild(o);
+  }
+  if (selected && !ports.includes(selected)) {
+    const o = document.createElement('option');
+    o.value = o.textContent = selected + ' (not present)';
+    o.value = selected;
+    $('port').appendChild(o);
+  }
+  if (selected) $('port').value = selected;
+}
+
+async function loadConfig() {
+  config = await api('/api/config');
+  $('link').value = config.link;
+  $('name').value = config.name;
+  if (config.link === 'serial') { await loadPorts(config.address); } else { $('address').value = config.address; await loadPorts(null); }
+  showLinkFields();
+}
+
+async function refreshState() {
+  try {
+    const s = await api('/api/state');
+    $('state').textContent =
+      `connected: ${s.connected}\nlink: ${s.link}\nfirmware: ${s.firmware ?? '-'}\ncalibrated: ${s.calibrated ?? '-'}\nlast error: ${s.lastError ?? '-'}`;
+  } catch (e) {
+    $('state').textContent = 'server not reachable';
+  }
+}
+
+$('link').addEventListener('change', showLinkFields);
+$('config').addEventListener('submit', async e => {
+  e.preventDefault();
+  const link = $('link').value;
+  const body = { link, address: link === 'serial' ? $('port').value : $('address').value.trim(), name: $('name').value.trim() || 'OAPA' };
+  try {
+    const r = await api('/api/config', body);
+    $('message').textContent = r.applied ? 'Saved.' : 'Saved; it applies after the next disconnect and connect.';
+  } catch (err) {
+    $('message').textContent = 'Not saved: ' + err.message;
+  }
+});
+
+loadConfig().then(refreshState).catch(() => {});
+setInterval(refreshState, 1000);
+</script>
+</body>
+</html>

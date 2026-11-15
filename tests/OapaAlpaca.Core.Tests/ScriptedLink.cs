@@ -24,7 +24,15 @@ public sealed class ScriptedLink : IOapaLink {
 
     public void FailNext() => failNext = true;
 
-    public void Open() => IsOpen = true;
+    /// <summary>Makes <see cref="Open"/> throw, like a port that is missing or a host that does not answer.</summary>
+    public bool FailOpen { get; set; }
+
+    public void Open() {
+        if (FailOpen) {
+            throw new LinkException("scripted link cannot open");
+        }
+        IsOpen = true;
+    }
 
     public void Close() => IsOpen = false;
 

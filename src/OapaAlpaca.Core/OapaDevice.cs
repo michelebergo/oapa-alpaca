@@ -31,6 +31,26 @@ public sealed class OapaDevice {
 
     public bool Connected { get; private set; }
 
+    /// <summary>Where the current link goes (a port name or <c>tcp://host:port</c>), for the setup page.</summary>
+    public string LinkDescription {
+        get {
+            lock (gate) {
+                return link.Description;
+            }
+        }
+    }
+
+    /// <summary>Replaces the link, only while disconnected: the next <see cref="Connect"/> goes through the new one.</summary>
+    public void UseLink(IOapaLink replacement) {
+        lock (gate) {
+            if (Connected) {
+                throw new DeviceException(DeviceErrorKind.InvalidOperation, "disconnect before changing the link; the change applies at the next connect");
+            }
+            link.Close();
+            link = replacement;
+        }
+    }
+
     public DeviceInfo Info {
         get {
             lock (gate) {
@@ -45,7 +65,11 @@ public sealed class OapaDevice {
                 return;
             }
             try {
-                link.Open();
+                try {
+                    link.Open();
+                } catch (LinkException e) {
+                    throw new DeviceException(DeviceErrorKind.Link, e.Message);
+                }
                 var protocol = Exchange("$P?");
                 if (!OapaFrame.TryParse(protocol[0], out var p) || p.Name != "P" || !int.TryParse(p.Field("protocol"), out var version) || version < 1) {
                     throw new DeviceException(DeviceErrorKind.Driver, $"{link.Description} is not an OAPA alignment device (no protocol version)");

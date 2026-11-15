@@ -11,11 +11,20 @@ namespace OapaAlpaca.Tests;
 public sealed class ServerFactory : WebApplicationFactory<Program> {
     public ScriptedLink Link { get; } = new();
 
+    /// <summary>A config file of its own per factory, in the temp folder, so tests never touch a real one.</summary>
+    public string ConfigPath { get; } = Path.Combine(Path.GetTempPath(), $"oapa-alpaca-test-{Guid.NewGuid():N}.json");
+
     protected override void ConfigureWebHost(IWebHostBuilder builder) {
         builder.UseEnvironment("Testing");
+        builder.UseSetting("ConfigPath", ConfigPath);
         builder.ConfigureServices(services => {
             services.AddSingleton<IOapaLink>(Link);
         });
+    }
+
+    protected override void Dispose(bool disposing) {
+        base.Dispose(disposing);
+        File.Delete(ConfigPath);
     }
 
     /// <summary>A factory whose board answers the whole connect sequence of a calibrated 1.3.6 board.</summary>

@@ -4,16 +4,46 @@ using OapaAlpaca;
 using OapaAlpaca.Core;
 
 var builder = WebApplication.CreateBuilder(args);
-// Until the config file lands (setup page), the link comes from appsettings or the defaults below.
-var linkType = builder.Configuration["Link:Type"] ?? "tcp";
-var linkAddress = builder.Configuration["Link:Address"] ?? "192.168.1.40";
-var deviceName = builder.Configuration["Device:Name"] ?? "OAPA";
-var uniqueId = builder.Configuration["Device:UniqueId"] ?? "0a9a1f2e-0000-4000-8000-000000000001";
-builder.Services.AddSingleton<IOapaLink>(_ => linkType == "serial" ? new SerialOapaLink(linkAddress) : new TcpOapaLink(linkAddress));
-builder.Services.AddSingleton(s => new OapaDevice(s.GetRequiredService<IOapaLink>(), deviceName, SystemClock.Instance));
+// config.json next to the executable (ConfigPath overrides it: the tests point it at a temp file).
+var configPath = builder.Configuration["ConfigPath"] ?? Path.Combine(AppContext.BaseDirectory, "config.json");
+var config = ServerConfig.Load(configPath);
+builder.Services.AddSingleton<IOapaLink>(_ => ServerConfig.CreateLink(config));
+builder.Services.AddSingleton(s => new OapaDevice(s.GetRequiredService<IOapaLink>(), config.Name, SystemClock.Instance));
+if (!builder.Environment.IsEnvironment("Testing")) {
+    builder.Services.AddHostedService<AlpacaDiscovery>();
+}
 var app = builder.Build();
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
 var device = app.Services.GetRequiredService<OapaDevice>();
+var uniqueId = config.UniqueId;
+var configLock = new object();
+
+// Setup page API
+app.MapGet("/api/config", () => Results.Json(config, ServerConfigJson.Options));
+app.MapPost("/api/config", (ServerConfig.StoredConfig posted) => {
+    if (!ServerConfig.IsValidLink(posted.Link ?? "") || string.IsNullOrWhiteSpace(posted.Address)) {
+        return Results.BadRequest("link must be serial or tcp, and address must not be empty");
+    }
+    lock (configLock) {
+        config = config with { Link = posted.Link!, Address = posted.Address!.Trim(), Name = string.IsNullOrWhiteSpace(posted.Name) ? config.Name : posted.Name!.Trim() };
+        config.Save(configPath);
+        var applied = !device.Connected;
+        if (applied) {
+            device.UseLink(ServerConfig.CreateLink(config));
+        }
+        return Results.Json(new { applied }, ServerConfigJson.Options);
+    }
+});
+app.MapGet("/api/state", () => Results.Json(new {
+    connected = device.Connected,
+    link = device.LinkDescription,
+    firmware = device.Connected ? device.Info.FirmwareVersion : null,
+    calibrated = device.Connected ? device.Info.Calibrated : (bool?)null,
+    lastError = Alpaca.LastError
+}, ServerConfigJson.Options));
+app.MapGet("/api/ports", () => Results.Json(System.IO.Ports.SerialPort.GetPortNames().OrderBy(p => p).ToArray(), ServerConfigJson.Options));
 var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.0";
 const string Device = "/api/v1/switch/0/";
 const int SwitchCount = 2;
@@ -98,3 +128,8 @@ app.MapFallback(Device + "{member}", (HttpRequest r, string member) => Alpaca.Fa
 app.Run();
 
 public partial class Program { }
+
+/// <summary>camelCase JSON for the setup page, unlike the PascalCase of the Alpaca envelope.</summary>
+public static class ServerConfigJson {
+    public static readonly System.Text.Json.JsonSerializerOptions Options = new(System.Text.Json.JsonSerializerDefaults.Web);
+}
