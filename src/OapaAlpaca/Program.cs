@@ -60,6 +60,11 @@ app.MapGet(Device + "driverinfo", (HttpRequest r) => Alpaca.Run(r, () => $"OAPA 
 app.MapGet(Device + "driverversion", (HttpRequest r) => Alpaca.Run(r, () => version));
 app.MapGet(Device + "interfaceversion", (HttpRequest r) => Alpaca.Run(r, () => 3));
 app.MapGet(Device + "supportedactions", (HttpRequest r) => Alpaca.Run(r, () => PolarAlignActions.Names));
+app.MapPut(Device + "action", (HttpRequest r) => Alpaca.Run(r, async () => {
+    var action = await Alpaca.Parameter(r, "Action") ?? "";
+    var parameters = await Alpaca.Parameter(r, "Parameters") ?? "";
+    return PolarAlignActions.Dispatch(device, action, parameters);
+}));
 app.MapGet(Device + "devicestate", (HttpRequest r) => Alpaca.Run(r, () => {
     if (!device.Connected) {
         return Array.Empty<object>();
