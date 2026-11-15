@@ -10,9 +10,11 @@ The contract it implements, shared with the AlpacaBridge driver and the firmware
 Alpaca server, is in
 [docs/superpowers/specs/2026-11-14-oapa-alpaca-contract-design.md](docs/superpowers/specs/2026-11-14-oapa-alpaca-contract-design.md).
 
-This version drives the board through **Tier 2** only: the host sends the polar error
-readings and the board runs the alignment itself (firmware 1.3.3 or later, protocol 1).
-Tier 1 relative moves arrive with the firmware's `$R=` command.
+Both tiers of the PolarAlign draft: **Tier 2**, where the host sends the polar error
+readings and the board runs the alignment itself (firmware 1.3.3 or later, protocol 1),
+and **Tier 1**, where the host asks for one relative move at a time in arcminutes and the
+board converts with its own factors and compensates backlash (firmware 1.3.7 or later,
+command `$R=`). A board without `$R=` is served with Tier 2 only.
 
 ## Run
 
@@ -44,7 +46,12 @@ point the page at `/dev/serial/by-id/...` so a re-enumerated USB converter keeps
 - Switch, interface version 3, two read-only switches with the azimuth and altitude
   position in arcminutes (unavailable until the board is calibrated).
 - Actions `PolarAlign:Info`, `Status`, `Move`, `Stop`, `Home`, `Begin`, `Error`, `End`
-  (OpenAstroTech draft v0.1). `Info` reports `tiers: [2]`.
+  (OpenAstroTech draft v0.1). `Info` reports `tiers: [1, 2]`, or `[2]` on a board without
+  `$R=`. `Move` answers `{"arcmin": n}`, the request rounded to whole steps; a move that
+  the board gives up on (stall, timeout, a stop from the board's page) shows in `Status`
+  as a `fault` string on that axis until the next `Move` of the axis, `Stop` or `Home`.
+- Factors entered on the board's page or pushed by the controller count as a calibration:
+  positions, resolution and `Move` are available with them.
 - Alpaca error numbers as in the contract; a lost link fails the request with HTTP 503.
 
 ## Tests
@@ -53,7 +60,7 @@ point the page at `/dev/serial/by-id/...` so a re-enumerated USB converter keeps
 dotnet test OapaAlpaca.slnx
 ```
 
-117 tests: the protocol frames, the links, the device engine against a scripted board, and
+147 tests: the protocol frames, the links, the device engine against a scripted board, and
 the HTTP surface through an in-memory host. No hardware needed.
 
 ## Bench
@@ -62,6 +69,8 @@ the HTTP surface through an in-memory host. No hardware needed.
   over the OAPA protocol (`$C=2`), so an uncalibrated board gets factors. The motors move.
 - `tools/rehearsal.py <server url>`: a Tier 2 session through Alpaca with a synthetic
   sky; passes when the board reports done within tolerance. `--stop-after N` checks Stop.
+  `--tier 1` instead sends relative moves and checks the positions follow, the refusals,
+  and that Stop ends a move within two seconds (the motors decelerate).
 - ConformU on the Switch: [docs/conformu](docs/conformu), 0 errors, 0 issues (4.5.3,
   server on a Raspberry Pi 5, board on USB).
 

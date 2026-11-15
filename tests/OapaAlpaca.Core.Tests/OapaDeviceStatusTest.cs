@@ -108,7 +108,7 @@ public class OapaDeviceStatusTest {
         threads.ForEach(t => t.Start());
         gate.Set();
         threads.ForEach(t => t.Join());
-        link.Sent.Skip(4).Should().AllBe("?");
+        link.Sent.Skip(5).Should().AllBe("?"); // five commands at connect
         results.Should().NotContainNulls();
     }
 }

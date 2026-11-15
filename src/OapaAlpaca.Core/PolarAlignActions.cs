@@ -22,8 +22,7 @@ public static class PolarAlignActions {
                 return PolarAlignJson.Status(device.Status());
             case "polaralign:move": {
                 var (axis, arcmin) = PolarAlignJson.ParseMove(parameters);
-                device.Move(axis, arcmin);
-                return "";
+                return PolarAlignJson.MoveReply(device.Move(axis, arcmin));
             }
             case "polaralign:stop":
                 // One axis cannot stop alone on an OAPA board: both axes stop (spec 4.2).

@@ -13,7 +13,7 @@ public class SwitchHttpTest {
         (await client.Get("connected")).GetProperty("Value").GetBoolean().Should().BeFalse();
         (await client.Connect()).ErrorNumber().Should().Be(0);
         (await client.Get("connected")).GetProperty("Value").GetBoolean().Should().BeTrue();
-        factory.Link.Sent.Should().Equal("$P?", "?", "$M?", "$K?");
+        factory.Link.Sent.Should().Equal("$P?", "?", "$M?", "$R?", "$K?");
     }
 
     [Test]

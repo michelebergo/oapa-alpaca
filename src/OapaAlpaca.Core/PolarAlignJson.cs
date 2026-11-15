@@ -15,6 +15,9 @@ public static class PolarAlignJson {
         Write(w => {
             w.WriteString("specVersion", SpecVersion);
             w.WriteStartArray("tiers");
+            if (info.CanMove) {
+                w.WriteNumberValue(1);
+            }
             w.WriteNumberValue(2);
             w.WriteEndArray();
             w.WriteString("deviceName", name);
@@ -43,6 +46,9 @@ public static class PolarAlignJson {
                 if (s.Position is not null) {
                     w.WriteNumber("position", s.Position.Value);
                 }
+                if (s.Fault is not null) {
+                    w.WriteString("fault", s.Fault);
+                }
                 w.WriteEndObject();
             }
             w.WriteStartObject("alignment");
@@ -53,6 +59,9 @@ public static class PolarAlignJson {
             }
             w.WriteEndObject();
         });
+
+    /// <summary>The reply to Move: the arcminutes the board will move, the request rounded to whole steps.</summary>
+    public static string MoveReply(double arcmin) => Write(w => w.WriteNumber("arcmin", arcmin));
 
     public static (double Tolerance, double? MaxMove) ParseBegin(string json) {
         using var doc = Parse(json);

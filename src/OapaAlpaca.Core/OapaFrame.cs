@@ -46,12 +46,16 @@ public sealed record StatusFrame(string State, long X, long Y, string? Version) 
     }
 }
 
-/// <summary>The reply to <c>$K?</c>: whether the board has factors, and steps per arcminute with the sign per axis.</summary>
+/// <summary>
+/// The reply to <c>$K?</c>: steps per arcminute with the sign per axis. <see cref="Done"/> when both axes
+/// have a factor, measured by the board (<c>state:done</c>) or entered by the host (<c>state:pushed</c>,
+/// sign 0): either drives <c>$R=</c> and the alignment loop alike.
+/// </summary>
 public sealed record Calibration(bool Done, double? FactorX, int SignX, double? FactorY, int SignY) {
     public static Calibration Parse(OapaFrame frame) {
         var (fx, sx) = ParseAxis(frame.Field("x"));
         var (fy, sy) = ParseAxis(frame.Field("y"));
-        return new Calibration(frame.Field("state") == "done", fx, sx, fy, sy);
+        return new Calibration(fx is > 0 && fy is > 0, fx, sx, fy, sy);
     }
 
     private static (double? Factor, int Sign) ParseAxis(string text) {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bench rehearsal of an OAPA Alpaca device: a Tier 2 session with a synthetic sky.
+"""Bench rehearsal of an OAPA Alpaca device: a Tier 2 session with a synthetic sky, or Tier 1 moves.
 
 The script plays the host. It connects over Alpaca, reads Info, sends Begin, and then feeds the
 device error readings computed from the motion the device reports: the "measured" error is the
@@ -9,7 +9,11 @@ It passes when the device reports the alignment done and the synthetic error is 
     python tools/rehearsal.py http://localhost:11113 --error 30,-20 --tolerance 1.5
 
 A second run with --stop-after N sends Stop after the N-th reading and checks the axes stop within
-one poll. Exit code 0 means pass; 1 prints the reason. Standard library only.
+one poll. With --tier 1 the script sends relative moves instead (+1' az, -2' alt, +1.5' az) and
+checks the reported positions follow within one step, that a move beyond maxMove and a bad axis
+are refused before anything moves, and that Stop ends a move within two seconds (the motors
+decelerate) and nothing moves afterwards.
+Exit code 0 means pass; 1 prints the reason. Standard library only.
 """
 import argparse
 import json
@@ -70,6 +74,78 @@ def fail(reason):
     return 1
 
 
+# "!" decelerates the motors: a board at full feed reports Run for about half a second after
+# Stop (0.8 s measured over WiFi on a FYSETC E4, 15/11/2026). Twice that is the allowance.
+STOP_S = 2.0
+
+
+def wait_still(dev, timeout_s):
+    """Polls Status until no axis moves; returns the last status, or None on timeout."""
+    end = time.time() + timeout_s
+    while time.time() < end:
+        time.sleep(POLL_S)
+        status = dev.action("PolarAlign:Status")
+        if not status["az"]["moving"] and not status["alt"]["moving"]:
+            return status
+    return None
+
+
+def tier1(dev, info, args):
+    if 1 not in info.get("tiers", []):
+        return fail("the device does not offer Tier 1 (firmware without $R=?)")
+    axes = info["axes"]
+    before = dev.action("PolarAlign:Status")
+    if before["az"].get("position") is None:
+        return fail("the device reports no positions (not calibrated?)")
+    for axis, amount in (("az", 1.0), ("alt", -2.0), ("az", 1.5)):
+        start = before[axis]["position"]
+        reply = dev.action("PolarAlign:Move", {"axis": axis, "arcmin": amount})
+        print(f"Move {axis} {amount:+.2f}' -> arcmin {reply.get('arcmin')}")
+        status = dev.action("PolarAlign:Status")
+        if not status[axis]["moving"]:
+            print(f"  note: {axis} not reported moving on the first poll (a short move may already be over)")
+        after = wait_still(dev, args.timeout_s)
+        if after is None:
+            return fail(f"{axis} still moves after {args.timeout_s} s")
+        if "fault" in after[axis]:
+            return fail(f"{axis} reports a fault: {after[axis]['fault']}")
+        moved = after[axis]["position"] - start
+        if abs(moved - reply["arcmin"]) > axes[axis]["resolution"] * 1.01:
+            return fail(f"{axis} moved {moved:+.3f}' for a reply of {reply['arcmin']:+.3f}'")
+        print(f"  {axis} moved {moved:+.3f}'  OK")
+        before = after
+    for parameters, expected in (({"axis": "az", "arcmin": axes["az"]["maxMove"] + 1}, 0x401), ({"axis": "ra", "arcmin": 1}, 0x401)):
+        try:
+            dev.action("PolarAlign:Move", parameters)
+            return fail(f"Move {parameters} was accepted")
+        except AlpacaError as error:
+            if error.number != expected:
+                return fail(f"Move {parameters}: {error}")
+            print(f"Move {parameters} refused with 0x{error.number:X}  OK")
+    # Long enough to still be in flight when Stop arrives (a 5' move is over in half a second), and
+    # within the board's own move cap (30' by default on its page).
+    start = before["az"]["position"]
+    dev.action("PolarAlign:Move", {"axis": "az", "arcmin": -25})
+    time.sleep(0.5)
+    dev.action("PolarAlign:Stop")
+    stopped = time.time()
+    after = wait_still(dev, STOP_S)
+    if after is None:
+        return fail(f"az still moves {STOP_S} s after Stop")
+    if "fault" in after["az"]:
+        return fail(f"Stop left a fault: {after['az']['fault']}")
+    time.sleep(POLL_S)
+    later = dev.action("PolarAlign:Status")
+    if later["az"]["moving"] or later["az"]["position"] != after["az"]["position"]:
+        return fail("az moved again after it had stopped")
+    moved = after["az"]["position"] - start
+    if abs(moved) > 22:
+        return fail(f"az moved {moved:+.1f}' of -25': the Stop did not interrupt the move")
+    print(f"Stop ended the move in {time.time() - stopped:.2f} s (az moved {moved:+.3f}' of -25')  OK")
+    print("PASS")
+    return 0
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("url")
@@ -82,14 +158,19 @@ def main():
     p.add_argument("--stop-after", type=int, default=None, help="send Stop after this many readings and check the axes stop")
     p.add_argument("--timeout-s", type=float, default=600)
     p.add_argument("--seed", type=int, default=1)
+    p.add_argument("--tier", type=int, choices=(1, 2), default=2, help="1: relative moves instead of a session")
     args = p.parse_args()
     random.seed(args.seed)
     az0, alt0 = (float(v) for v in args.error.split(","))
     dev = Alpaca(args.url)
 
+    # A fresh link: after a link fault the device stays Connected until the client reconnects.
+    dev.put("connected", Connected="false")
     dev.put("connected", Connected="true")
     info = dev.action("PolarAlign:Info")
     print("Info:", json.dumps(info))
+    if args.tier == 1:
+        return tier1(dev, info, args)
     if 2 not in info.get("tiers", []):
         return fail("the device does not offer Tier 2")
     status = dev.action("PolarAlign:Status")
@@ -118,11 +199,10 @@ def main():
             if args.stop_after is not None and readings >= args.stop_after:
                 time.sleep(1.0)
                 dev.action("PolarAlign:Stop")
-                time.sleep(POLL_S)
-                after = dev.action("PolarAlign:Status")
-                if after["az"]["moving"] or after["alt"]["moving"]:
-                    return fail("an axis still moves one poll after Stop")
-                print("PASS: Stop ended the motion within one poll")
+                stopped = time.time()
+                if wait_still(dev, STOP_S) is None:
+                    return fail(f"an axis still moves {STOP_S} s after Stop")
+                print(f"PASS: Stop ended the motion in {time.time() - stopped:.2f} s")
                 return 0
             # Wait for the device to act on the reading and settle again.
             while time.time() - started < args.timeout_s:

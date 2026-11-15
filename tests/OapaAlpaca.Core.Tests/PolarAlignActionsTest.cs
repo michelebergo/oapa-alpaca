@@ -6,14 +6,14 @@ using OapaAlpaca.Core;
 namespace OapaAlpaca.Core.Tests;
 
 public class PolarAlignActionsTest {
-    private static readonly DeviceInfo Calibrated = new("1.3.6", 180, 1 / 12.34, 1 / 40.10, true);
+    private static readonly DeviceInfo Calibrated = new("1.3.6", 180, 1 / 12.34, 1 / 40.10, true, true);
 
     [Test]
     public void Info_json_matches_the_contract() {
         using var doc = JsonDocument.Parse(PolarAlignJson.Info(Calibrated, "OAPA"));
         var root = doc.RootElement;
         root.GetProperty("specVersion").GetString().Should().Be("0.1");
-        root.GetProperty("tiers").EnumerateArray().Select(t => t.GetInt32()).Should().Equal(2);
+        root.GetProperty("tiers").EnumerateArray().Select(t => t.GetInt32()).Should().Equal(1, 2);
         root.GetProperty("deviceName").GetString().Should().Be("OAPA");
         root.GetProperty("deviceVersion").GetString().Should().Be("1.3.6");
         var az = root.GetProperty("axes").GetProperty("az");
@@ -30,8 +30,22 @@ public class PolarAlignActionsTest {
     }
 
     [Test]
+    public void A_board_without_relative_moves_offers_tier_2_only() {
+        using var doc = JsonDocument.Parse(PolarAlignJson.Info(Calibrated with { CanMove = false }, "OAPA"));
+        doc.RootElement.GetProperty("tiers").EnumerateArray().Select(t => t.GetInt32()).Should().Equal(2);
+    }
+
+    [Test]
+    public void A_fault_is_written_on_its_axis_and_omitted_on_the_other() {
+        var status = new DeviceStatus(new AxisStatus(false, 1, "timeout AZ (X)"), new AxisStatus(false, 1), new AlignmentBlock("idle", 0, null));
+        using var doc = JsonDocument.Parse(PolarAlignJson.Status(status));
+        doc.RootElement.GetProperty("az").GetProperty("fault").GetString().Should().Be("timeout AZ (X)");
+        doc.RootElement.GetProperty("alt").TryGetProperty("fault", out _).Should().BeFalse();
+    }
+
+    [Test]
     public void An_uncalibrated_board_reports_zero_resolution() {
-        using var doc = JsonDocument.Parse(PolarAlignJson.Info(new DeviceInfo("1.3.6", 120, null, null, false), "OAPA"));
+        using var doc = JsonDocument.Parse(PolarAlignJson.Info(new DeviceInfo("1.3.6", 120, null, null, false, true), "OAPA"));
         doc.RootElement.GetProperty("axes").GetProperty("az").GetProperty("resolution").GetDouble().Should().Be(0);
     }
 
@@ -115,6 +129,17 @@ public class PolarAlignActionsTest {
         link.Expect("$H", "ok");
         PolarAlignActions.Dispatch(device, "PolarAlign:Home", "").Should().Be("");
         link.Sent.Should().Equal("$T=2.00", "$A=1", "$E=1.00,-1.00", "$L?", "?", "$L?", "$A=0", "!", "$H");
+    }
+
+    [Test]
+    public void Dispatch_move_answers_with_the_arcminutes_the_board_will_move() {
+        var link = OapaDeviceConnectTest.CalibratedBoard();
+        var device = new OapaDevice(link, "OAPA", new ManualClock());
+        device.Connect();
+        link.Expect("$R=1.00,0.00", "ok");
+        var reply = PolarAlignActions.Dispatch(device, "PolarAlign:Move", "{\"axis\":\"az\",\"arcmin\":1}");
+        using var doc = JsonDocument.Parse(reply);
+        doc.RootElement.GetProperty("arcmin").GetDouble().Should().BeApproximately(12 / 12.34, 1e-9);
     }
 
     [Test]

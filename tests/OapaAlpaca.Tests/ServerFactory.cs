@@ -27,12 +27,13 @@ public sealed class ServerFactory : WebApplicationFactory<Program> {
         File.Delete(ConfigPath);
     }
 
-    /// <summary>A factory whose board answers the whole connect sequence of a calibrated 1.3.6 board.</summary>
-    public static ServerFactory WithCalibratedBoard(string calibration = OapaDeviceConnectTest.CalibratedK) {
+    /// <summary>A factory whose board answers the whole connect sequence of a calibrated board with <c>$R=</c>.</summary>
+    public static ServerFactory WithCalibratedBoard(string calibration = OapaDeviceConnectTest.CalibratedK, string relative = OapaDeviceConnectTest.IdleR) {
         var factory = new ServerFactory();
         factory.Link.Expect("$P?", "<P|protocol:1|>")
             .Expect("?", OapaDeviceConnectTest.IdleStatus, "ok")
             .Expect("$M?", "<M|max:180|>")
+            .Expect("$R?", relative)
             .Expect("$K?", calibration);
         return factory;
     }

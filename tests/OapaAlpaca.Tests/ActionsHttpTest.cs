@@ -19,7 +19,7 @@ public class ActionsHttpTest {
         var reply = await Action(client, "PolarAlign:Info");
         reply.ErrorNumber().Should().Be(0);
         var info = JsonDocument.Parse(reply.GetProperty("Value").GetString()!).RootElement;
-        info.GetProperty("tiers").EnumerateArray().Select(t => t.GetInt32()).Should().Equal(2);
+        info.GetProperty("tiers").EnumerateArray().Select(t => t.GetInt32()).Should().Equal(1, 2);
         info.GetProperty("deviceVersion").GetString().Should().Be("1.3.6");
         info.GetProperty("axes").GetProperty("az").GetProperty("maxMove").GetDouble().Should().Be(180);
     }
@@ -53,13 +53,46 @@ public class ActionsHttpTest {
     }
 
     [Test]
-    public async Task Move_is_not_implemented() {
+    public async Task Move_reaches_the_board_and_answers_with_the_arcminutes() {
         using var factory = ServerFactory.WithCalibratedBoard();
+        var client = factory.CreateClient();
+        await client.Connect();
+        factory.Link.Sent.Clear();
+        factory.Link.Expect("$R=0.00,-2.00", "ok");
+        var reply = await Action(client, "PolarAlign:Move", "{\"axis\":\"alt\",\"arcmin\":-2}");
+        reply.ErrorNumber().Should().Be(0);
+        JsonDocument.Parse(reply.GetProperty("Value").GetString()!).RootElement.GetProperty("arcmin").GetDouble().Should().BeApproximately(-80 / 40.10, 1e-9);
+        factory.Link.Sent.Should().Equal("$R=0.00,-2.00");
+    }
+
+    [Test]
+    public async Task Move_on_a_board_without_the_command_is_0x400() {
+        using var factory = ServerFactory.WithCalibratedBoard(relative: "ok");
         var client = factory.CreateClient();
         await client.Connect();
         var reply = await Action(client, "PolarAlign:Move", "{\"axis\":\"az\",\"arcmin\":1}");
         reply.ErrorNumber().Should().Be(0x400);
         reply.GetProperty("ErrorMessage").GetString().Should().Contain("$R=");
+    }
+
+    [Test]
+    public async Task Move_on_an_uncalibrated_board_is_0x40B() {
+        using var factory = ServerFactory.WithCalibratedBoard(calibration: OapaDeviceConnectTest.IdleK);
+        var client = factory.CreateClient();
+        await client.Connect();
+        var reply = await Action(client, "PolarAlign:Move", "{\"axis\":\"az\",\"arcmin\":1}");
+        reply.ErrorNumber().Should().Be(0x40B);
+        reply.GetProperty("ErrorMessage").GetString().Should().Contain("not calibrated");
+    }
+
+    [Test]
+    public async Task Move_beyond_the_cap_is_0x401_and_nothing_is_sent() {
+        using var factory = ServerFactory.WithCalibratedBoard();
+        var client = factory.CreateClient();
+        await client.Connect();
+        factory.Link.Sent.Clear();
+        (await Action(client, "PolarAlign:Move", "{\"axis\":\"az\",\"arcmin\":181}")).ErrorNumber().Should().Be(0x401);
+        factory.Link.Sent.Should().BeEmpty();
     }
 
     [Test]

@@ -138,14 +138,6 @@ public class OapaDeviceTier2Test {
     }
 
     [Test]
-    public void Move_is_not_implemented_in_this_version() {
-        var (d, link, _) = Connected();
-        var act = () => d.Move("az", 1);
-        act.Should().Throw<DeviceException>().Where(e => e.Kind == DeviceErrorKind.NotImplemented && e.Message.Contains("$R="));
-        link.Sent.Should().BeEmpty();
-    }
-
-    [Test]
     public void A_refused_command_is_an_invalid_value() {
         var (d, link, _) = Connected();
         link.Expect("$T=5.00", "error");
@@ -181,7 +173,7 @@ public class OapaDeviceTier2Test {
         d.Connected.Should().BeTrue();
         // The client decides to reconnect: the usual Disconnect and Connect sequence works.
         d.Disconnect();
-        link.Expect("$P?", "<P|protocol:1|>").Expect("?", OapaDeviceConnectTest.IdleStatus, "ok").Expect("$M?", "<M|max:180|>").Expect("$K?", OapaDeviceConnectTest.CalibratedK);
+        link.Expect("$P?", "<P|protocol:1|>").Expect("?", OapaDeviceConnectTest.IdleStatus, "ok").Expect("$M?", "<M|max:180|>").Expect("$R?", OapaDeviceConnectTest.IdleR).Expect("$K?", OapaDeviceConnectTest.CalibratedK);
         d.Connect();
         d.Connected.Should().BeTrue();
     }

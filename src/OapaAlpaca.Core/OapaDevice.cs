@@ -20,6 +20,11 @@ public sealed class OapaDevice {
     private AlignmentBlock alignment = IdleBlock;
     // Set by the Tier 2 methods: a session runs between Begin and End.
     private bool sessionActive;
+    // Tier 1: a relative move sent with $R= whose outcome $R? has not reported yet, and the axis it moved.
+    private bool movePending;
+    private string? movingAxis;
+    private string? faultAz;
+    private string? faultAlt;
 
     public OapaDevice(IOapaLink link, string name, IClock clock) {
         this.link = link;
@@ -78,11 +83,13 @@ public sealed class OapaDevice {
                 var maxMove = OapaFrame.TryParse(Exchange("$M?")[0], out var m) && m.Name == "M"
                     ? OapaFrame.ParseNumber(m.Field("max"))
                     : DefaultMaxMove;
+                // A board with $R= answers $R? with a frame; an older one answers a plain "ok".
+                var canMove = OapaFrame.TryParse(Exchange("$R?")[0], out var r) && r.Name == "R";
                 calibration = OapaFrame.TryParse(Exchange("$K?")[0], out var k) && k.Name == "K"
                     ? Calibration.Parse(k)
                     : new Calibration(false, null, 0, null, 0);
                 info = new DeviceInfo(status.Version ?? "", maxMove,
-                                      Resolution(calibration.FactorX), Resolution(calibration.FactorY), calibration.Done);
+                                      Resolution(calibration.FactorX), Resolution(calibration.FactorY), calibration.Done, canMove);
                 Connected = true;
             } catch {
                 link.Close();
@@ -101,12 +108,13 @@ public sealed class OapaDevice {
             cachedStatus = null;
             alignment = IdleBlock;
             sessionActive = false;
+            ForgetMoves();
         }
     }
 
     /// <summary>
-    /// The axes and the alignment block. Polls <c>?</c> (and <c>$L?</c> during a session) unless the
-    /// last poll is younger than <see cref="StatusCacheAge"/>.
+    /// The axes and the alignment block. Polls <c>?</c> (plus <c>$L?</c> during a session and <c>$R?</c>
+    /// while a relative move is pending) unless the last poll is younger than <see cref="StatusCacheAge"/>.
     /// </summary>
     public DeviceStatus Status() {
         lock (gate) {
@@ -121,9 +129,12 @@ public sealed class OapaDevice {
                 RefreshAlignment();
             }
             var moving = frame.State is "Run" or "Home";
+            if (movePending) {
+                moving |= RefreshMove();
+            }
             cachedStatus = new DeviceStatus(
-                new AxisStatus(moving, Position(frame.X, calibration.FactorX)),
-                new AxisStatus(moving, Position(frame.Y, calibration.FactorY)),
+                new AxisStatus(moving, Position(frame.X, calibration.FactorX), faultAz),
+                new AxisStatus(moving, Position(frame.Y, calibration.FactorY), faultAlt),
                 alignment);
             cachedAt = clock.UtcNow;
             return cachedStatus;
@@ -193,29 +204,66 @@ public sealed class OapaDevice {
         }
     }
 
-    /// <summary>Stops both axes now; also ends a session the host is feeding.</summary>
+    /// <summary>Stops both axes now; also ends a session the host is feeding and clears the move faults.</summary>
     public void Stop() {
         lock (gate) {
             _ = Info;
             Command("!");
             EndSession();
+            ForgetMoves();
         }
     }
 
-    /// <summary>Homes both axes (an endstop, or zero in place); also ends a session the host is feeding.</summary>
+    /// <summary>Homes both axes (an endstop, or zero in place); also ends a session the host is feeding and clears the move faults.</summary>
     public void Home() {
         lock (gate) {
             _ = Info;
             Command("$H");
             EndSession();
+            ForgetMoves();
         }
     }
 
-    /// <summary>Tier 1 relative move: not available until the firmware has the <c>$R=</c> command.</summary>
-    public void Move(string axis, double arcmin) {
+    /// <summary>
+    /// Tier 1: move one axis by <paramref name="arcmin"/> through <c>$R=</c> (spec 4.2). The board converts
+    /// with its own factors and compensates backlash; the value returned is the request rounded to whole
+    /// steps, what the axis will net. A move ends a Tier 2 session the host is feeding, as a hand move does.
+    /// </summary>
+    public double Move(string axis, double arcmin) {
         lock (gate) {
-            _ = Info;
-            throw new DeviceException(DeviceErrorKind.NotImplemented, "Tier 1 needs firmware with $R=; this version drives the board through Tier 2 only");
+            var current = Info;
+            if (axis is not ("az" or "alt")) {
+                throw new DeviceException(DeviceErrorKind.InvalidValue, $"axis '{axis}' is not az or alt");
+            }
+            if (!current.CanMove) {
+                throw new DeviceException(DeviceErrorKind.NotImplemented, "Tier 1 needs firmware 1.3.7 or later ($R=); this board offers Tier 2 only");
+            }
+            if (!double.IsFinite(arcmin) || Math.Abs(arcmin) > current.MaxMove) {
+                throw new DeviceException(DeviceErrorKind.InvalidValue, $"move {arcmin} is not within +/-{Arcmin(current.MaxMove)}'");
+            }
+            if (!current.Calibrated) {
+                throw new DeviceException(DeviceErrorKind.InvalidOperation, "not calibrated: run an alignment with the controller first, or enter the factors");
+            }
+            var command = axis == "az" ? $"$R={Arcmin(arcmin)},0.00" : $"$R=0.00,{Arcmin(arcmin)}";
+            if (Exchange(command)[0] == "error") {
+                // Calibrated and within $M? from here; the board still refuses while an axis moves, while it
+                // calibrates, and beyond its own move cap (the setting on its page, or one pushed with $M=).
+                throw new DeviceException(DeviceErrorKind.InvalidOperation, "the board refused the move: an axis is moving, a calibration is running, or the move exceeds the board's own cap");
+            }
+            movePending = true;
+            movingAxis = axis;
+            if (axis == "az") {
+                faultAz = null;
+            } else {
+                faultAlt = null;
+            }
+            if (sessionActive) {
+                sessionActive = false;
+                alignment = new AlignmentBlock("failed", alignment.Moves, "interrupted by a move");
+            }
+            cachedStatus = null; // the next poll must see the motion, not a cached idle
+            var factor = (axis == "az" ? calibration.FactorX : calibration.FactorY)!.Value;
+            return Math.Round(arcmin * factor) / factor;
         }
     }
 
@@ -239,6 +287,40 @@ public sealed class OapaDevice {
     }
 
     private static string Arcmin(double value) => value.ToString("0.00", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// One <c>$R?</c> for a pending relative move: true while the board still moves; once done, failed or
+    /// forgotten (the board restarted) the poll stops and a failure becomes the fault of the moved axis.
+    /// </summary>
+    private bool RefreshMove() {
+        var frame = Frame(Exchange("$R?")[0], "$R?");
+        var state = frame.Field("state");
+        if (state == "moving") {
+            return true;
+        }
+        movePending = false;
+        var fault = state switch {
+            "done" => null,
+            "failed" => frame.Field("reason") is { Length: > 0 } reason ? reason : "failed",
+            _ => "the board lost the move"
+        };
+        if (movingAxis == "az") {
+            faultAz = fault;
+        } else {
+            faultAlt = fault;
+        }
+        return false;
+    }
+
+    private void ForgetMoves() {
+        movePending = false;
+        movingAxis = null;
+        faultAz = null;
+        faultAlt = null;
+        if (cachedStatus is not null) {
+            cachedStatus = cachedStatus with { Az = cachedStatus.Az with { Fault = null }, Alt = cachedStatus.Alt with { Fault = null } };
+        }
+    }
 
     private void RefreshAlignment() {
         var state = AlignmentState.Parse(Frame(Exchange("$L?")[0], "$L?"));
