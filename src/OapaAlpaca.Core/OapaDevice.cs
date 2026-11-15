@@ -1,3 +1,4 @@
+using System.Globalization;
 namespace OapaAlpaca.Core;
 
 /// <summary>
@@ -123,6 +124,97 @@ public sealed class OapaDevice {
         };
         return new AlignmentBlock(phase, state.Moves, text);
     }
+
+    /// <summary>Tier 2: hand the alignment to the board. Spec 4.3: <c>$T=</c>, <c>$M=</c> when given, <c>$A=1</c>.</summary>
+    public void Begin(double tolerance, double? maxMove) {
+        lock (gate) {
+            var current = Info;
+            if (!double.IsFinite(tolerance) || tolerance <= 0 || tolerance > 60) {
+                throw new DeviceException(DeviceErrorKind.InvalidValue, $"tolerance {Arcmin(tolerance)}' is outside (0, 60]");
+            }
+            if (maxMove is not null && (!double.IsFinite(maxMove.Value) || maxMove < 1 || maxMove > current.MaxMove)) {
+                throw new DeviceException(DeviceErrorKind.InvalidValue, $"maxMove {Arcmin(maxMove.Value)}' is outside [1, {Arcmin(current.MaxMove)}]");
+            }
+            Command($"$T={Arcmin(tolerance)}");
+            if (maxMove is not null) {
+                Command($"$M={maxMove.Value.ToString("0", CultureInfo.InvariantCulture)}");
+            }
+            Command("$A=1");
+            sessionActive = true;
+            alignment = new AlignmentBlock("waiting", 0, null);
+            UpdateCachedAlignment();
+        }
+    }
+
+    /// <summary>Tier 2: one error reading for the board, then the board's verdict through <c>$L?</c>.</summary>
+    public void Error(double az, double alt) {
+        lock (gate) {
+            _ = Info;
+            foreach (var (value, axis) in new[] { (az, "az"), (alt, "alt") }) {
+                if (!double.IsFinite(value) || Math.Abs(value) > 3600) {
+                    throw new DeviceException(DeviceErrorKind.InvalidValue, $"{axis} error {value} is not a usable reading");
+                }
+            }
+            Command($"$E={Arcmin(az)},{Arcmin(alt)}");
+            RefreshAlignment();
+        }
+    }
+
+    /// <summary>Tier 2: the host ends the session. The board's later "stopped" state reads as idle.</summary>
+    public void End() {
+        lock (gate) {
+            _ = Info;
+            Command("$A=0");
+            EndSession();
+        }
+    }
+
+    /// <summary>Stops both axes now; also ends a session the host is feeding.</summary>
+    public void Stop() {
+        lock (gate) {
+            _ = Info;
+            Command("!");
+            EndSession();
+        }
+    }
+
+    /// <summary>Homes both axes (an endstop, or zero in place); also ends a session the host is feeding.</summary>
+    public void Home() {
+        lock (gate) {
+            _ = Info;
+            Command("$H");
+            EndSession();
+        }
+    }
+
+    /// <summary>Tier 1 relative move: not available until the firmware has the <c>$R=</c> command.</summary>
+    public void Move(string axis, double arcmin) {
+        lock (gate) {
+            _ = Info;
+            throw new DeviceException(DeviceErrorKind.NotImplemented, "Tier 1 needs firmware with $R=; this version drives the board through Tier 2 only");
+        }
+    }
+
+    private void Command(string command) {
+        var reply = Exchange(command)[0];
+        if (reply == "error") {
+            throw new DeviceException(DeviceErrorKind.InvalidValue, $"the board refused {command}");
+        }
+    }
+
+    private void EndSession() {
+        sessionActive = false;
+        alignment = IdleBlock;
+        UpdateCachedAlignment();
+    }
+
+    private void UpdateCachedAlignment() {
+        if (cachedStatus is not null) {
+            cachedStatus = cachedStatus with { Alignment = alignment };
+        }
+    }
+
+    private static string Arcmin(double value) => value.ToString("0.00", CultureInfo.InvariantCulture);
 
     private void RefreshAlignment() {
         var state = AlignmentState.Parse(Frame(Exchange("$L?")[0], "$L?"));
