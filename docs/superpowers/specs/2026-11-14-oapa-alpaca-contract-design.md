@@ -25,7 +25,7 @@ script passes against all three.
 
 | Topic | Decision |
 |---|---|
-| Carrier | Alpaca **Switch**, interface version 3, plus the **PolarAlign actions** (OpenAstroTech draft v0.1) in `SupportedActions`. The IAxisAligner type comes later behind the same code. |
+| Carrier | Alpaca **Switch**, interface version 3, plus the **PolarAlign actions** (OpenAstroTech draft v0.1) in `SupportedActions`. Since 16/11/2026 also an Alpaca **Aligner** after the ASCOM IAlignerV1 draft (section 3.5), the same board under a second device type. |
 | Tier 1 moves | A new optional firmware command, `$R=`, moves in arcminutes: the board converts with its own factors and compensates backlash. No conversion in the driver. |
 | Azimuth sign | Positive azimuth turns the polar axis **clockwise seen from above** (the azimuth coordinate increases: east in the north, west in the south). Positive altitude **raises** the polar axis. A device executes this without knowing the hemisphere. This settles point D1 of `PolarAlignActionsComparison.md` in OpenAstroTech's favour; the IAxisAligner draft follows. |
 | Units on the wire | Arcminutes, as PolarAlign and TPPA use them. Degrees belong to the future ASCOM type; the conversion is a factor of 60 in one place. |
@@ -120,6 +120,33 @@ also accepted by clients; use 0x40C).
 - `fault`: present on an axis after a `Move` that failed (stall, end of travel, timeout),
   with the board's reason; cleared by the next `Move`, `Stop` or `Home` on that axis.
 - `alignment`: present always (Tier 2 is always available); mapping in 4.4.
+
+### 3.5 The Aligner device (ASCOM IAlignerV1 draft 1)
+
+Added 16/11/2026, the day after Peter Simpson posted the draft
+(<https://ascom-standards.org/ialigner>, Alpaca definition
+<https://ascom-standards.org/apialigner>), so that the ASCOM Initiative has a real device
+to test the proposal against. It is the same board as the Switch, served at
+`/api/v1/aligner/0/`, listed as a second entry in `configureddevices` with its own stable
+`UniqueID`; connecting one device connects the other. The PolarAlign actions stay on the
+Switch: `SupportedActions` of the Aligner is empty and `Action` answers 0x40C.
+
+| Member | Value |
+|---|---|
+| `InterfaceVersion` | 1 |
+| `Configuration` | one object: `AlignerPurpose` 1 (PolarAligner), `Units` 1 (Degrees), `CanMoveX` and `CanMoveY` true, `CanMoveZ` false, `CanFindHome` and `CanHalt` true, `CanMoveAbsolute` and `CanSync` false, `XMaxMove` and `YMaxMove` = the move cap of section 3.3 divided by 60. The travel limits are omitted: the board does not know them. |
+| `ConfigurationVersion` | 1 |
+| `Move(X, Y, Z)` | degrees; `Z` must be 0 (`InvalidValue` otherwise, as for a non-finite amount or one beyond `XMaxMove`); one `$R=` with both axes, `X` azimuth and `Y` altitude, times 60. A zero move on both axes sends nothing and completes at once. Not calibrated: `InvalidOperation`. |
+| `Halt` | `!`, both axes; afterwards `IsMoving` is false, the move cancelled, not failed |
+| `FindHome` | `$H` |
+| `IsMoving` | true while the board moves or homes; after a move that failed it throws `DriverException` (0x500) naming the axis and the board's reason, on every read until the next `Move` (a zero move will do), `Halt`, `FindHome` or reconnect: the rule of IAxisAligner draft 4, so that a client can tell a finished move from one that stopped |
+| `XPosition`, `YPosition` | degrees from the board's zero, motor positions: across a reversal they include the board's backlash take-up (bench, 16/11/2026: 0.01° asked, 0.01° in the same direction, up to 0.06° at a reversal); `PropertyNotImplemented` (0x400) while the board has no factors |
+| `ZPosition`, `MoveAbsolute`, `Sync`, `Command*` | not implemented (0x400) |
+| `DeviceState` | empty while disconnected; otherwise `TimeStamp`, `IsMoving` (left out while a failure is pending) and the two positions when calibrated |
+
+The sign rule is the board's own (section 2) and the one the IAxisAligner draft 4 gives
+for `AlignerPurpose = PolarAligner`: positive X increases the azimuth of the polar axis
+(clockwise seen from above), positive Y raises it.
 
 ## 4. Mapping onto the OAPA protocol
 
@@ -235,7 +262,7 @@ Everything in sections 3 to 5 is identical.
 ## 7. Tests shared by the three
 
 1. **ConformU** on the Switch device, no errors, no issues. Actions are not covered by
-   ConformU; the rehearsal covers them.
+   ConformU; the rehearsal covers them. ConformU does not know the Aligner yet.
 2. **Bench rehearsal**: a script that connects to the device over Alpaca and plays a Tier 1
    probe plus correction and a Tier 2 session, with a synthetic sky: the "measured" error is
    the initial error minus the motion the board reports in `position`, plus noise. It
@@ -248,7 +275,7 @@ Everything in sections 3 to 5 is identical.
 
 ## 8. Out of scope
 
-- The IAxisAligner ASCOM type: added later behind the same actions, once the spec exists.
+- The Aligner's absolute moves, sync and travel range: the board does not know its travel.
 - Calibration started from Alpaca: a Tier 2 session calibrates when needed.
 - Absolute moves, sync, travel range: the board does not know its travel.
 - The `:AX…#` serial protocol: a separate proposal; this contract uses the OAPA protocol.

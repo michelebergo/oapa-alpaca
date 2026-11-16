@@ -28,11 +28,11 @@ public sealed class ServerFactory : WebApplicationFactory<Program> {
     }
 
     /// <summary>A factory whose board answers the whole connect sequence of a calibrated board with <c>$R=</c>.</summary>
-    public static ServerFactory WithCalibratedBoard(string calibration = OapaDeviceConnectTest.CalibratedK, string relative = OapaDeviceConnectTest.IdleR) {
+    public static ServerFactory WithCalibratedBoard(string calibration = OapaDeviceConnectTest.CalibratedK, string relative = OapaDeviceConnectTest.IdleR, string maxMove = "<M|max:180|>") {
         var factory = new ServerFactory();
         factory.Link.Expect("$P?", "<P|protocol:1|>")
             .Expect("?", OapaDeviceConnectTest.IdleStatus, "ok")
-            .Expect("$M?", "<M|max:180|>")
+            .Expect("$M?", maxMove)
             .Expect("$R?", relative)
             .Expect("$K?", calibration);
         return factory;
@@ -41,15 +41,20 @@ public sealed class ServerFactory : WebApplicationFactory<Program> {
 
 public static class AlpacaClient {
     public const string Device = "/api/v1/switch/0/";
+    public const string Aligner = "/api/v1/aligner/0/";
 
-    public static async Task<JsonElement> Get(this HttpClient client, string member, string query = "") {
-        var response = await client.GetAsync(Device + member + (query.Length > 0 ? "?" + query : ""));
+    public static Task<JsonElement> Get(this HttpClient client, string member, string query = "") => client.GetAt(Device, member, query);
+
+    public static Task<JsonElement> Put(this HttpClient client, string member, params (string Key, string Value)[] form) => client.PutAt(Device, member, form);
+
+    public static async Task<JsonElement> GetAt(this HttpClient client, string device, string member, string query = "") {
+        var response = await client.GetAsync(device + member + (query.Length > 0 ? "?" + query : ""));
         response.EnsureSuccessStatusCode();
         return JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
     }
 
-    public static async Task<JsonElement> Put(this HttpClient client, string member, params (string Key, string Value)[] form) {
-        var response = await client.PutAsync(Device + member, new FormUrlEncodedContent(form.Select(f => new KeyValuePair<string, string>(f.Key, f.Value))));
+    public static async Task<JsonElement> PutAt(this HttpClient client, string device, string member, params (string Key, string Value)[] form) {
+        var response = await client.PutAsync(device + member, new FormUrlEncodedContent(form.Select(f => new KeyValuePair<string, string>(f.Key, f.Value))));
         response.EnsureSuccessStatusCode();
         return JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
     }

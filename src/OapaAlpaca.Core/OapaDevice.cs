@@ -20,9 +20,10 @@ public sealed class OapaDevice {
     private AlignmentBlock alignment = IdleBlock;
     // Set by the Tier 2 methods: a session runs between Begin and End.
     private bool sessionActive;
-    // Tier 1: a relative move sent with $R= whose outcome $R? has not reported yet, and the axis it moved.
+    // Tier 1: a relative move sent with $R= whose outcome $R? has not reported yet, and the axes it moved.
     private bool movePending;
-    private string? movingAxis;
+    private bool movedAz;
+    private bool movedAlt;
     private string? faultAz;
     private string? faultAlt;
 
@@ -227,47 +228,62 @@ public sealed class OapaDevice {
     }
 
     /// <summary>
-    /// Tier 1: move one axis by <paramref name="arcmin"/> through <c>$R=</c> (spec 4.2). The board converts
-    /// with its own factors and compensates backlash; the value returned is the request rounded to whole
-    /// steps, what the axis will net. A move ends a Tier 2 session the host is feeding, as a hand move does.
+    /// Tier 1: move one axis by <paramref name="arcmin"/> through <c>$R=</c> (spec 4.2). The value returned
+    /// is the request rounded to whole steps, what the axis will net.
     /// </summary>
     public double Move(string axis, double arcmin) {
+        if (axis is not ("az" or "alt")) {
+            throw new DeviceException(DeviceErrorKind.InvalidValue, $"axis '{axis}' is not az or alt");
+        }
+        var moved = axis == "az" ? Move(arcmin, 0) : Move(0, arcmin);
+        return axis == "az" ? moved.Az : moved.Alt;
+    }
+
+    /// <summary>
+    /// A relative move of both axes, in arcminutes, through one <c>$R=</c>. The board converts with its own
+    /// factors and compensates backlash; the values returned are the requests rounded to whole steps. A move
+    /// of zero on both axes sends nothing and completes at once; any move clears the faults of the axes it
+    /// moves (a zero move clears both). A move ends a Tier 2 session the host is feeding, as a hand move does.
+    /// </summary>
+    public (double Az, double Alt) Move(double azArcmin, double altArcmin) {
         lock (gate) {
             var current = Info;
-            if (axis is not ("az" or "alt")) {
-                throw new DeviceException(DeviceErrorKind.InvalidValue, $"axis '{axis}' is not az or alt");
-            }
             if (!current.CanMove) {
                 throw new DeviceException(DeviceErrorKind.NotImplemented, "Tier 1 needs firmware 1.3.7 or later ($R=); this board offers Tier 2 only");
             }
-            if (!double.IsFinite(arcmin) || Math.Abs(arcmin) > current.MaxMove) {
-                throw new DeviceException(DeviceErrorKind.InvalidValue, $"move {arcmin} is not within +/-{Arcmin(current.MaxMove)}'");
+            foreach (var (value, axis) in new[] { (azArcmin, "az"), (altArcmin, "alt") }) {
+                if (!double.IsFinite(value) || Math.Abs(value) > current.MaxMove) {
+                    throw new DeviceException(DeviceErrorKind.InvalidValue, $"{axis} move {value} is not within +/-{Arcmin(current.MaxMove)}'");
+                }
             }
             if (!current.Calibrated) {
                 throw new DeviceException(DeviceErrorKind.InvalidOperation, "not calibrated: run an alignment with the controller first, or enter the factors");
             }
-            var command = axis == "az" ? $"$R={Arcmin(arcmin)},0.00" : $"$R=0.00,{Arcmin(arcmin)}";
-            if (Exchange(command)[0] == "error") {
+            var zero = azArcmin == 0 && altArcmin == 0;
+            if (!zero && Exchange($"$R={Arcmin(azArcmin)},{Arcmin(altArcmin)}")[0] == "error") {
                 // Calibrated and within $M? from here; the board still refuses while an axis moves, while it
                 // calibrates, and beyond its own move cap (the setting on its page, or one pushed with $M=).
                 throw new DeviceException(DeviceErrorKind.InvalidOperation, "the board refused the move: an axis is moving, a calibration is running, or the move exceeds the board's own cap");
             }
-            movePending = true;
-            movingAxis = axis;
-            if (axis == "az") {
+            movePending = !zero;
+            movedAz = zero || azArcmin != 0;
+            movedAlt = zero || altArcmin != 0;
+            if (movedAz) {
                 faultAz = null;
-            } else {
+            }
+            if (movedAlt) {
                 faultAlt = null;
             }
             if (sessionActive) {
                 sessionActive = false;
                 alignment = new AlignmentBlock("failed", alignment.Moves, "interrupted by a move");
             }
-            cachedStatus = null; // the next poll must see the motion, not a cached idle
-            var factor = (axis == "az" ? calibration.FactorX : calibration.FactorY)!.Value;
-            return Math.Round(arcmin * factor) / factor;
+            cachedStatus = null; // the next poll must see the motion (or the cleared fault), not a cached one
+            return (Round(azArcmin, calibration.FactorX), Round(altArcmin, calibration.FactorY));
         }
     }
+
+    private static double Round(double arcmin, double? factor) => arcmin == 0 ? 0 : Math.Round(arcmin * factor!.Value) / factor.Value;
 
     private void Command(string command) {
         var reply = Exchange(command)[0];
@@ -306,9 +322,10 @@ public sealed class OapaDevice {
             "failed" => frame.Field("reason") is { Length: > 0 } reason ? reason : "failed",
             _ => "the board lost the move"
         };
-        if (movingAxis == "az") {
+        if (movedAz) {
             faultAz = fault;
-        } else {
+        }
+        if (movedAlt) {
             faultAlt = fault;
         }
         return false;
@@ -316,7 +333,8 @@ public sealed class OapaDevice {
 
     private void ForgetMoves() {
         movePending = false;
-        movingAxis = null;
+        movedAz = false;
+        movedAlt = false;
         faultAz = null;
         faultAlt = null;
         if (cachedStatus is not null) {

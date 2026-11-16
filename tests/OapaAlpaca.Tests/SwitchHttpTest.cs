@@ -135,12 +135,12 @@ public class SwitchHttpTest {
     }
 
     [Test]
-    public async Task Configured_devices_lists_one_switch() {
+    public async Task Configured_devices_lists_the_switch_first() {
+        // The Aligner that follows it is covered by AlignerHttpTest.
         using var factory = ServerFactory.WithCalibratedBoard();
         var client = factory.CreateClient();
         var response = await client.GetAsync("/management/v1/configureddevices");
         var devices = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.GetProperty("Value");
-        devices.GetArrayLength().Should().Be(1);
         devices[0].GetProperty("DeviceType").GetString().Should().Be("Switch");
         devices[0].GetProperty("DeviceNumber").GetInt32().Should().Be(0);
         devices[0].GetProperty("UniqueID").GetString().Should().NotBeNullOrEmpty();

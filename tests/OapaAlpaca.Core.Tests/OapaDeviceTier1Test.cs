@@ -215,6 +215,56 @@ public class OapaDeviceTier1Test {
     }
 
     [Test]
+    public void Move_both_axes_sends_one_R_and_answers_both_amounts_rounded_to_steps() {
+        // The board takes both axes in one $R= (the aligner's Move(X, Y, Z) is one call for every axis).
+        var (d, link, _) = Connected();
+        link.Expect("$R=1.50,-2.00", "ok");
+        var moved = d.Move(1.5, -2);
+        moved.Az.Should().BeApproximately(19 / 12.34, 1e-9);
+        moved.Alt.Should().BeApproximately(-80 / 40.10, 1e-9);
+        link.Sent.Should().Equal("$R=1.50,-2.00");
+    }
+
+    [Test]
+    public void A_failed_two_axis_move_faults_both_axes_it_moved() {
+        var (d, link, _) = Connected();
+        link.Expect("$R=1.00,1.00", "ok").Expect("?", OapaDeviceConnectTest.IdleStatus, "ok").Expect("$R?", FailedR);
+        d.Move(1, 1);
+        var s = d.Status();
+        s.Az.Fault.Should().Be("timeout AZ (X)");
+        s.Alt.Fault.Should().Be("timeout AZ (X)");
+    }
+
+    [Test]
+    public void A_failed_two_axis_move_leaves_an_axis_it_did_not_move_alone() {
+        var (d, link, _) = Connected();
+        link.Expect("$R=0.00,1.00", "ok").Expect("?", OapaDeviceConnectTest.IdleStatus, "ok").Expect("$R?", FailedR);
+        d.Move(0, 1);
+        var s = d.Status();
+        s.Az.Fault.Should().BeNull();
+        s.Alt.Fault.Should().Be("timeout AZ (X)");
+    }
+
+    [Test]
+    public void A_zero_move_sends_nothing_completes_at_once_and_clears_the_faults() {
+        // Draft 4: a zero move is valid and completes immediately; it is also the cheapest way to clear a fault.
+        var (d, link, clock) = Connected();
+        link.Expect("$R=1.00,0.00", "ok").Expect("?", OapaDeviceConnectTest.IdleStatus, "ok").Expect("$R?", FailedR);
+        d.Move("az", 1);
+        d.Status().Az.Fault.Should().NotBeNull();
+        link.Sent.Clear();
+        var moved = d.Move(0, 0);
+        moved.Should().Be((0.0, 0.0));
+        d.Move("alt", 0).Should().Be(0);
+        clock.Advance(TimeSpan.FromSeconds(1));
+        link.Expect("?", OapaDeviceConnectTest.IdleStatus, "ok");
+        var s = d.Status();
+        s.Az.Fault.Should().BeNull();
+        s.Az.Moving.Should().BeFalse();
+        link.Sent.Should().Equal("?"); // no $R=, no $R?
+    }
+
+    [Test]
     public void Move_throws_not_connected_before_connect() {
         var d = new OapaDevice(new ScriptedLink(), "OAPA", new ManualClock());
         var act = () => d.Move("az", 1);

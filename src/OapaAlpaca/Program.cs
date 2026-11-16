@@ -19,6 +19,8 @@ app.UseStaticFiles();
 
 var device = app.Services.GetRequiredService<OapaDevice>();
 var uniqueId = config.UniqueId;
+// The Aligner is the same board under a second device type; its UniqueID is derived from the Switch's so both are stable.
+var alignerUniqueId = DerivedId(uniqueId);
 var configLock = new object();
 
 // Setup page API
@@ -70,30 +72,13 @@ double Position(int id) {
 app.MapGet("/management/apiversions", (HttpRequest r) => Alpaca.Run(r, () => new[] { 1 }));
 app.MapGet("/management/v1/description", (HttpRequest r) => Alpaca.Run(r, () =>
     new { ServerName = "OAPA Alpaca server", Manufacturer = "Michele Bergo", ManufacturerVersion = version, Location = Environment.MachineName }));
-app.MapGet("/management/v1/configureddevices", (HttpRequest r) => Alpaca.Run(r, () =>
-    new[] { new { DeviceName = device.Name, DeviceType = "Switch", DeviceNumber = 0, UniqueID = uniqueId } }));
+app.MapGet("/management/v1/configureddevices", (HttpRequest r) => Alpaca.Run(r, () => new[] {
+    new { DeviceName = device.Name, DeviceType = "Switch", DeviceNumber = 0, UniqueID = uniqueId },
+    new { DeviceName = device.Name, DeviceType = "Aligner", DeviceNumber = 0, UniqueID = alignerUniqueId }
+}));
 
-// Common members
-app.MapGet(Device + "connected", (HttpRequest r) => Alpaca.Run(r, () => device.Connected));
-app.MapPut(Device + "connected", (HttpRequest r) => Alpaca.Run(r, async () => {
-    var wanted = string.Equals(await Alpaca.Parameter(r, "Connected"), "true", StringComparison.OrdinalIgnoreCase);
-    if (wanted) { device.Connect(); } else { device.Disconnect(); }
-    return null;
-}));
-app.MapPut(Device + "connect", (HttpRequest r) => Alpaca.Run(r, () => { device.Connect(); return (object?)null; }));
-app.MapPut(Device + "disconnect", (HttpRequest r) => Alpaca.Run(r, () => { device.Disconnect(); return (object?)null; }));
-app.MapGet(Device + "connecting", (HttpRequest r) => Alpaca.Run(r, () => false));
-app.MapGet(Device + "name", (HttpRequest r) => Alpaca.Run(r, () => device.Name));
-app.MapGet(Device + "description", (HttpRequest r) => Alpaca.Run(r, () => "OAPA polar alignment base"));
-app.MapGet(Device + "driverinfo", (HttpRequest r) => Alpaca.Run(r, () => $"OAPA Alpaca server {version}"));
-app.MapGet(Device + "driverversion", (HttpRequest r) => Alpaca.Run(r, () => version));
-app.MapGet(Device + "interfaceversion", (HttpRequest r) => Alpaca.Run(r, () => 3));
-app.MapGet(Device + "supportedactions", (HttpRequest r) => Alpaca.Run(r, () => PolarAlignActions.Names));
-app.MapPut(Device + "action", (HttpRequest r) => Alpaca.Run(r, async () => {
-    var action = await Alpaca.Parameter(r, "Action") ?? "";
-    var parameters = await Alpaca.Parameter(r, "Parameters") ?? "";
-    return PolarAlignActions.Dispatch(device, action, parameters);
-}));
+// Common members of the Switch (interface version 3), with the PolarAlign actions
+CommonMembers.Map(app, Device, device, version, 3, PolarAlignActions.Names, (action, parameters) => PolarAlignActions.Dispatch(device, action, parameters));
 app.MapGet(Device + "devicestate", (HttpRequest r) => Alpaca.Run(r, () => {
     if (!device.Connected) {
         return Array.Empty<object>();
@@ -134,9 +119,17 @@ foreach (var write in new[] { "setswitchname", "setswitch", "setswitchvalue", "s
         throw new DeviceException(DeviceErrorKind.NotImplemented, $"{write} is not implemented: the switches are read only");
     }));
 }
-app.MapFallback(Device + "{member}", (HttpRequest r, string member) => Alpaca.Fail(r, Alpaca.NotImplemented, $"{member} is not implemented"));
+// The same board as an Aligner (ASCOM IAlignerV1 draft), in degrees
+AlignerEndpoints.Map(app, device, version);
 
 app.Run();
+
+// A second GUID that follows the first: the last byte flipped.
+static string DerivedId(string guid) {
+    var bytes = Guid.Parse(guid).ToByteArray();
+    bytes[15] ^= 0x01;
+    return new Guid(bytes).ToString();
+}
 
 public partial class Program { }
 
