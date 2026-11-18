@@ -97,9 +97,13 @@ the HTTP surface of both devices through an in-memory host. No hardware needed.
 - `tools/bench_calibrate.py <host:port>`: calibrates a bench board with a synthetic sky
   over the OAPA protocol (`$C=2`), so an uncalibrated board gets factors. The motors move.
 - `tools/rehearsal.py <server url>`: a Tier 2 session through Alpaca with a synthetic
-  sky; passes when the board reports done within tolerance. `--stop-after N` checks Stop.
-  `--tier 1` instead sends relative moves and checks the positions follow, the refusals,
-  and that Stop ends a move within two seconds (the motors decelerate).
+  sky; passes when the board reports done within tolerance. `--play <arcmin>` gives the
+  synthetic mount a mechanical play, felt across every reversal of the motors as on a real
+  mount, so the board's backlash compensation (the `$B=` values a host pushed, kept in its
+  RAM until a reboot) has to match it. `--stop-after N` checks Stop. `--tier 1` instead
+  sends relative moves and checks that a move in the direction of the previous one moves the
+  position by exactly the reply, reports the compensation the board added on a reversal, and
+  checks the refusals and that Stop ends a move within two seconds (the motors decelerate).
 - ConformU on the Switch: [docs/conformu](docs/conformu), 0 errors, 0 issues (4.5.3,
   server on a Raspberry Pi 5, board on USB). ConformU does not know the Aligner yet; the
   draft is a proposal.

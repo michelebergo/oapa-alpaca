@@ -265,7 +265,12 @@ Everything in sections 3 to 5 is identical.
    ConformU; the rehearsal covers them. ConformU does not know the Aligner yet.
 2. **Bench rehearsal**: a script that connects to the device over Alpaca and plays a Tier 1
    probe plus correction and a Tier 2 session, with a synthetic sky: the "measured" error is
-   the initial error minus the motion the board reports in `position`, plus noise. It
+   the initial error minus the motion the board reports in `position`, plus noise. The
+   positions are motor positions, so the synthetic mount has a mechanical play (`--play`,
+   17/11/2026): across every reversal that much motor travel moves nothing, as on a real
+   mount, and the board's compensation (the `$B=` values a host pushed, kept in RAM) has to
+   match it. In Tier 1 only a move in the direction of the previous one is checked to the
+   step; the first move of an axis and a reversal report the compensation the board added. It
    passes when both sessions end within tolerance, a refused move comes back as the right
    Alpaca error, `Stop` ends a move within one poll, a disconnected link makes the request
    fail, and `Info` is identical before and after a session. The script is written once
