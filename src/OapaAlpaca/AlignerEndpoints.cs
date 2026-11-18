@@ -4,7 +4,7 @@ using OapaAlpaca.Core;
 namespace OapaAlpaca;
 
 /// <summary>
-/// The board as an Alpaca Aligner, after the ASCOM IAlignerV1 draft (ascom-standards.org/ialigner, draft 1):
+/// The board as an Alpaca Aligner, after the ASCOM IAlignerV1 draft (ascom-standards.org/ialigner, 18/11/2026):
 /// a polar aligner working in degrees, X azimuth and Y altitude, relative moves only. Positive X increases
 /// the azimuth of the polar axis (clockwise seen from above), positive Y raises it: the board's own rule.
 /// A failed move is reported by <c>ismoving</c> as a driver error, with the axis and the board's reason,
@@ -39,6 +39,7 @@ public static class AlignerEndpoints {
         }));
         app.MapPut(Prefix + "moveabsolute", (HttpRequest r) => Alpaca.Fail(r, Alpaca.NotImplemented, "moveabsolute is not implemented: the board has no absolute position (CanMoveAbsolute is false)"));
         app.MapPut(Prefix + "sync", (HttpRequest r) => Alpaca.Fail(r, Alpaca.NotImplemented, "sync is not implemented (CanSync is false)"));
+        app.MapPut(Prefix + "setbacklashcompensation", (HttpRequest r) => Alpaca.Fail(r, Alpaca.NotImplemented, "setbacklashcompensation is not implemented: the board always compensates its backlash (CanSetBacklash is false)"));
         app.MapPut(Prefix + "halt", (HttpRequest r) => Alpaca.Run(r, () => { device.Stop(); return (object?)null; }));
         app.MapPut(Prefix + "findhome", (HttpRequest r) => Alpaca.Run(r, () => { device.Home(); return (object?)null; }));
 
@@ -60,20 +61,35 @@ public static class AlignerEndpoints {
         }));
     }
 
-    /// <summary>IAlignerConfigurationV1 in one object. The travel limits are left out: the board does not know them.</summary>
-    private static object Configuration(DeviceInfo info) => new {
-        AlignerPurpose = PolarAligner,
-        CanFindHome = true,
-        CanHalt = true,
-        CanMoveAbsolute = false,
-        CanMoveX = true,
-        CanMoveY = true,
-        CanMoveZ = false,
-        CanSync = false,
-        Units = Degrees,
-        XMaxMove = info.MaxMove / 60,
-        YMaxMove = info.MaxMove / 60
-    };
+    /// <summary>
+    /// IAlignerConfigurationV1 in one object. Left out when the board does not know them, as the Alpaca
+    /// definition allows: the travel limits, and the resolution until the board has calibration factors.
+    /// The board takes up its own backlash on every reversal (the <c>$B=</c> values a host pushed), so
+    /// compensation is always on and a client cannot switch it.
+    /// </summary>
+    private static Dictionary<string, object> Configuration(DeviceInfo info) {
+        var c = new Dictionary<string, object> {
+            ["AlignerPurpose"] = PolarAligner,
+            ["BacklashCompensation"] = true,
+            ["CanFindHome"] = true,
+            ["CanMoveAbsolute"] = false,
+            ["CanMoveX"] = true,
+            ["CanMoveY"] = true,
+            ["CanMoveZ"] = false,
+            ["CanSetBacklash"] = false,
+            ["CanSync"] = false,
+            ["Units"] = Degrees,
+            ["XMaxMove"] = info.MaxMove / 60,
+            ["YMaxMove"] = info.MaxMove / 60
+        };
+        if (info.ResolutionAz is { } x) {
+            c["XResolution"] = x / 60;
+        }
+        if (info.ResolutionAlt is { } y) {
+            c["YResolution"] = y / 60;
+        }
+        return c;
+    }
 
     private static bool IsMoving(DeviceStatus status) {
         var faults = new[] { (status.Az.Fault, "X"), (status.Alt.Fault, "Y") }.Where(f => f.Item1 is not null).Select(f => $"{f.Item2} axis: {f.Item1}").ToArray();

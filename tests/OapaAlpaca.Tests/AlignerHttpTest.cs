@@ -43,11 +43,16 @@ public class AlignerHttpTest {
         c.GetProperty("CanMoveY").GetBoolean().Should().BeTrue();
         c.GetProperty("CanMoveZ").GetBoolean().Should().BeFalse();
         c.GetProperty("CanFindHome").GetBoolean().Should().BeTrue();
-        c.GetProperty("CanHalt").GetBoolean().Should().BeTrue();
+        c.TryGetProperty("CanHalt", out _).Should().BeFalse("Halt is mandatory since the draft of 17/11/2026, so there is no CanHalt");
         c.GetProperty("CanMoveAbsolute").GetBoolean().Should().BeFalse();
         c.GetProperty("CanSync").GetBoolean().Should().BeFalse();
         c.GetProperty("XMaxMove").GetDouble().Should().Be(0.5);
         c.GetProperty("YMaxMove").GetDouble().Should().Be(0.5);
+        c.GetProperty("XResolution").GetDouble().Should().BeApproximately(1 / 12.34 / 60, 1e-7, "one step of the X factor, in degrees");
+        c.GetProperty("YResolution").GetDouble().Should().BeApproximately(1 / 40.10 / 60, 1e-7);
+        c.TryGetProperty("ZResolution", out _).Should().BeFalse();
+        c.GetProperty("BacklashCompensation").GetBoolean().Should().BeTrue("the board takes up its backlash on every reversal");
+        c.GetProperty("CanSetBacklash").GetBoolean().Should().BeFalse();
         c.TryGetProperty("XMinPosition", out _).Should().BeFalse("the board does not know its travel");
         c.TryGetProperty("ZMaxMove", out _).Should().BeFalse();
         (await client.GetAt(A, "configurationversion")).GetProperty("Value").GetInt32().Should().Be(1);
@@ -150,6 +155,27 @@ public class AlignerHttpTest {
         (await client.GetAt(A, "xposition")).GetProperty("Value").GetDouble().Should().BeApproximately(1234 / 12.34 / 60, 1e-9);
         (await client.GetAt(A, "yposition")).GetProperty("Value").GetDouble().Should().BeApproximately(-401 / 40.10 / 60, 1e-9);
         (await client.GetAt(A, "zposition")).ErrorNumber().Should().Be(0x400);
+    }
+
+    [Test]
+    public async Task Configuration_leaves_the_resolution_out_while_the_board_has_no_factors() {
+        using var factory = ServerFactory.WithCalibratedBoard(OapaDeviceConnectTest.IdleK);
+        var client = factory.CreateClient();
+        await client.PutAt(A, "connected", ("Connected", "true"));
+        var c = (await client.GetAt(A, "configuration")).GetProperty("Value");
+        c.TryGetProperty("XResolution", out _).Should().BeFalse("the step size comes from the calibration factors");
+        c.TryGetProperty("YResolution", out _).Should().BeFalse();
+        c.GetProperty("BacklashCompensation").GetBoolean().Should().BeTrue();
+    }
+
+    [Test]
+    public async Task Set_backlash_compensation_is_not_implemented_and_reaches_nothing() {
+        using var factory = ServerFactory.WithCalibratedBoard();
+        var client = factory.CreateClient();
+        await client.PutAt(A, "connected", ("Connected", "true"));
+        factory.Link.Sent.Clear();
+        (await client.PutAt(A, "setbacklashcompensation", ("State", "false"))).ErrorNumber().Should().Be(0x400, "CanSetBacklash is false");
+        factory.Link.Sent.Should().BeEmpty();
     }
 
     [Test]
