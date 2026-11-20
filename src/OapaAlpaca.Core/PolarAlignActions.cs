@@ -17,7 +17,7 @@ public static class PolarAlignActions {
     public static string Dispatch(OapaDevice device, string action, string parameters) {
         switch (action.ToLowerInvariant()) {
             case "polaralign:info":
-                return PolarAlignJson.Info(device.Info, device.Name);
+                return PolarAlignJson.Info(device.Info, device.Name, device.OfferTier2);
             case "polaralign:status":
                 return PolarAlignJson.Status(device.Status());
             case "polaralign:move": {

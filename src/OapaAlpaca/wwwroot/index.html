@@ -9,6 +9,7 @@
   h1 { font-size: 1.4rem; }
   label { display: block; margin-top: .8rem; font-weight: 600; }
   input, select { width: 100%; padding: .4rem; margin-top: .2rem; font-size: 1rem; }
+  .check { display: block; margin-top: .6rem; } .check input { width: auto; margin-right: .4rem; }
   button { margin-top: 1rem; padding: .5rem 1rem; font-size: 1rem; }
   .state { margin-top: 1.5rem; padding: 1rem; background: #f3f3f3; border-radius: .4rem; font-family: monospace; white-space: pre-wrap; }
   .note { color: #666; font-size: .9rem; }
@@ -34,6 +35,7 @@
   <label>Device name
     <input id="name" placeholder="OAPA">
   </label>
+  <label class="check"><input type="checkbox" id="offerTier2"> Offer Tier 2: the board runs the alignment itself from the host's error readings. Off, the host sends every move (Tier 1).</label>
   <button type="submit">Save</button>
   <span id="message" class="note"></span>
 </form>
@@ -77,6 +79,7 @@ async function loadConfig() {
   config = await api('/api/config');
   $('link').value = config.link;
   $('name').value = config.name;
+  $('offerTier2').checked = config.offerTier2 !== false;
   if (config.link === 'serial') { await loadPorts(config.address); } else { $('address').value = config.address; await loadPorts(null); }
   showLinkFields();
 }
@@ -95,7 +98,7 @@ $('link').addEventListener('change', showLinkFields);
 $('config').addEventListener('submit', async e => {
   e.preventDefault();
   const link = $('link').value;
-  const body = { link, address: link === 'serial' ? $('port').value : $('address').value.trim(), name: $('name').value.trim() || 'OAPA' };
+  const body = { link, address: link === 'serial' ? $('port').value : $('address').value.trim(), name: $('name').value.trim() || 'OAPA', offerTier2: $('offerTier2').checked };
   try {
     const r = await api('/api/config', body);
     $('message').textContent = r.applied ? 'Saved.' : 'Saved; it applies after the next disconnect and connect.';

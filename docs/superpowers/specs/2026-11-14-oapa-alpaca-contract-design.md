@@ -87,7 +87,7 @@ also accepted by clients; use 0x40C).
     "az":  { "maxMove": 120, "resolution": 0.0123, "backlashHandled": true },
     "alt": { "maxMove": 120, "resolution": 0.0145, "backlashHandled": true }
   },
-  "simultaneousMoves": true,
+  "simultaneousMoves": false,
   "movesWhileTracking": true,
   "movesWhileSlewing": false,
   "canStop": true,
@@ -101,8 +101,16 @@ also accepted by clients; use 0x40C).
   than the page allows, never larger.
 - `resolution`: arcminutes per step from the calibration factors; 0 while not calibrated.
 - `range` is omitted: an OAPA board does not know its travel.
+- `simultaneousMoves` is false (since 19/11/2026): `$R=` carries both axes, but the board
+  refuses a second `$R=` while an axis moves, and each `PolarAlign:Move` is one axis, so a
+  host must wait for a move to end before the next. The desk test with TPPA found it: the
+  Correctors plugin probes both axes back to back when the flag is true, and the second
+  probe was refused.
 - `tiers` contains 1 only when the board answers `$R?`; a board without it (firmware before
-  the command) reports `[2]`.
+  the command) reports `[2]`. It contains 2 unless the server's page setting *Offer Tier 2*
+  is off (`offerTier2` in `config.json`, default true; added 19/11/2026 so that a host which
+  takes Tier 2 when offered can be made to drive every move): then `[1]`. The setting is
+  read at each `Info`, so it applies without reconnecting; `Begin` is not refused by it.
 
 ### 3.4 Status
 

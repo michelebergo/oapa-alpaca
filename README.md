@@ -27,8 +27,12 @@ dotnet run --project src/OapaAlpaca
 ```
 
 Then open <http://localhost:11113/>, choose how the board is reached (a serial port, or
-the board's WiFi address on TCP 2323), and save. The setting lives in `config.json` next
-to the executable, together with the Alpaca `UniqueID` generated on the first start.
+the board's WiFi address on TCP 2323), and save. The same page has *Offer Tier 2*, on by
+default: off, `PolarAlign:Info` lists Tier 1 only, so a host that takes the board's own
+loop when offered (N.I.N.A.'s Polar Alignment Correctors plugin does) sends every move
+itself instead; it applies at the next `Info`, without reconnecting. The settings live in
+`config.json` next to the executable, together with the Alpaca `UniqueID` generated on the
+first start.
 
 The server answers Alpaca discovery, so the ASCOM chooser and N.I.N.A. list it as
 "OAPA" without typing an address. Devices: Switch 0, `http://<host>:11113/api/v1/switch/0`,
@@ -50,9 +54,11 @@ point the page at `/dev/serial/by-id/...` so a re-enumerated USB converter keeps
   position in arcminutes (unavailable until the board is calibrated).
 - Actions `PolarAlign:Info`, `Status`, `Move`, `Stop`, `Home`, `Begin`, `Error`, `End`
   (OpenAstroTech draft v0.1). `Info` reports `tiers: [1, 2]`, or `[2]` on a board without
-  `$R=`. `Move` answers `{"arcmin": n}`, the request rounded to whole steps; a move that
+  `$R=`, or `[1]` with *Offer Tier 2* off on the page. `Move` answers `{"arcmin": n}`, the request rounded to whole steps; a move that
   the board gives up on (stall, timeout, a stop from the board's page) shows in `Status`
   as a `fault` string on that axis until the next `Move` of the axis, `Stop` or `Home`.
+  `simultaneousMoves` is false: the board takes one move at a time, so a host waits for a
+  move to end before sending the other axis.
 - Factors entered on the board's page or pushed by the controller count as a calibration:
   positions, resolution and `Move` are available with them.
 - `maxMove` is the move cap set on the board's page (firmware 1.3.7 reports it in `$M?`):
@@ -94,7 +100,7 @@ The Aligner (the ASCOM IAlignerV1 draft as of 18 November 2026,
 dotnet test OapaAlpaca.slnx
 ```
 
-171 tests: the protocol frames, the links, the device engine against a scripted board, and
+172 tests: the protocol frames, the links, the device engine against a scripted board, and
 the HTTP surface of both devices through an in-memory host. No hardware needed.
 
 ## Bench

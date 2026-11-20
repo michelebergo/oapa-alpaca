@@ -35,6 +35,9 @@ public sealed class OapaDevice {
 
     public string Name { get; }
 
+    /// <summary>Whether <c>PolarAlign:Info</c> offers Tier 2, the board's own alignment loop. Off, a host sends every move itself.</summary>
+    public bool OfferTier2 { get; set; } = true;
+
     public bool Connected { get; private set; }
 
     /// <summary>Where the current link goes (a port name or <c>tcp://host:port</c>), for the setup page.</summary>

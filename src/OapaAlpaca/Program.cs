@@ -22,6 +22,7 @@ var uniqueId = config.UniqueId;
 // The Aligner is the same board under a second device type; its UniqueID is derived from the Switch's so both are stable.
 var alignerUniqueId = DerivedId(uniqueId);
 var configLock = new object();
+device.OfferTier2 = config.OfferTier2;
 
 // Setup page API
 app.MapGet("/api/config", () => Results.Json(config, ServerConfigJson.Options));
@@ -30,8 +31,9 @@ app.MapPost("/api/config", (ServerConfig.StoredConfig posted) => {
         return Results.BadRequest("link must be serial or tcp, and address must not be empty");
     }
     lock (configLock) {
-        config = config with { Link = posted.Link!, Address = posted.Address!.Trim(), Name = string.IsNullOrWhiteSpace(posted.Name) ? config.Name : posted.Name!.Trim() };
+        config = config with { Link = posted.Link!, Address = posted.Address!.Trim(), Name = string.IsNullOrWhiteSpace(posted.Name) ? config.Name : posted.Name!.Trim(), OfferTier2 = posted.OfferTier2 ?? config.OfferTier2 };
         config.Save(configPath);
+        device.OfferTier2 = config.OfferTier2; // read at the next PolarAlign:Info, no reconnect needed
         var applied = !device.Connected;
         if (applied) {
             device.UseLink(ServerConfig.CreateLink(config));

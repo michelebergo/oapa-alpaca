@@ -22,7 +22,7 @@ public class PolarAlignActionsTest {
         az.GetProperty("backlashHandled").GetBoolean().Should().BeTrue();
         az.TryGetProperty("range", out _).Should().BeFalse();
         root.GetProperty("axes").GetProperty("alt").GetProperty("resolution").GetDouble().Should().BeApproximately(0.0249, 0.0001);
-        root.GetProperty("simultaneousMoves").GetBoolean().Should().BeTrue();
+        root.GetProperty("simultaneousMoves").GetBoolean().Should().BeFalse("one $R= at a time: the board refuses a second move while an axis moves (desk test with TPPA, 19/11/2026)");
         root.GetProperty("movesWhileTracking").GetBoolean().Should().BeTrue();
         root.GetProperty("movesWhileSlewing").GetBoolean().Should().BeFalse();
         root.GetProperty("canStop").GetBoolean().Should().BeTrue();

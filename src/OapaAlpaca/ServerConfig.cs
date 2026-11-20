@@ -8,7 +8,9 @@ namespace OapaAlpaca;
 /// The server's settings in <c>config.json</c>: how to reach the board, the device name, and the Alpaca
 /// <c>UniqueID</c>, generated once on the first start and kept, so clients recognise the device across restarts.
 /// </summary>
-public sealed record ServerConfig(string Link, string Address, string Name, string UniqueId) {
+/// <para><see cref="OfferTier2"/>: whether <c>PolarAlign:Info</c> offers the board's own alignment loop (default); off, a host such as
+/// N.I.N.A.'s Polar Alignment Correctors plugin, which takes Tier 2 when offered, drives every move itself.</para>
+public sealed record ServerConfig(string Link, string Address, string Name, string UniqueId, bool OfferTier2 = true) {
     public const string Serial = "serial";
     public const string Tcp = "tcp";
 
@@ -31,7 +33,8 @@ public sealed record ServerConfig(string Link, string Address, string Name, stri
                 IsValidLink(stored.Link ?? "") ? stored.Link! : defaults.Link,
                 string.IsNullOrWhiteSpace(stored.Address) ? defaults.Address : stored.Address!,
                 string.IsNullOrWhiteSpace(stored.Name) ? defaults.Name : stored.Name!,
-                Guid.TryParse(stored.UniqueId, out _) ? stored.UniqueId! : defaults.UniqueId);
+                Guid.TryParse(stored.UniqueId, out _) ? stored.UniqueId! : defaults.UniqueId,
+                stored.OfferTier2 ?? true);
             if (config.UniqueId != stored.UniqueId) {
                 config.Save(path);
             }
@@ -47,7 +50,7 @@ public sealed record ServerConfig(string Link, string Address, string Name, stri
         if (!string.IsNullOrEmpty(directory)) {
             Directory.CreateDirectory(directory);
         }
-        File.WriteAllText(path, JsonSerializer.Serialize(new StoredConfig { Link = Link, Address = Address, Name = Name, UniqueId = UniqueId }, Json));
+        File.WriteAllText(path, JsonSerializer.Serialize(new StoredConfig { Link = Link, Address = Address, Name = Name, UniqueId = UniqueId, OfferTier2 = OfferTier2 }, Json));
     }
 
     public static IOapaLink CreateLink(ServerConfig config) =>
@@ -59,5 +62,6 @@ public sealed record ServerConfig(string Link, string Address, string Name, stri
         public string? Address { get; set; }
         public string? Name { get; set; }
         public string? UniqueId { get; set; }
+        public bool? OfferTier2 { get; set; }
     }
 }

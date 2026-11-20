@@ -11,14 +11,20 @@ namespace OapaAlpaca.Core;
 public static class PolarAlignJson {
     public const string SpecVersion = "0.1";
 
-    public static string Info(DeviceInfo info, string name) =>
+    /// <summary>
+    /// <paramref name="offerTier2"/> false leaves Tier 2 out of <c>tiers</c>, so a host that prefers the
+    /// board's own loop when offered drives every move itself instead (the server's page setting).
+    /// </summary>
+    public static string Info(DeviceInfo info, string name, bool offerTier2 = true) =>
         Write(w => {
             w.WriteString("specVersion", SpecVersion);
             w.WriteStartArray("tiers");
             if (info.CanMove) {
                 w.WriteNumberValue(1);
             }
-            w.WriteNumberValue(2);
+            if (offerTier2) {
+                w.WriteNumberValue(2);
+            }
             w.WriteEndArray();
             w.WriteString("deviceName", name);
             w.WriteString("deviceVersion", info.FirmwareVersion);
@@ -31,7 +37,9 @@ public static class PolarAlignJson {
                 w.WriteEndObject();
             }
             w.WriteEndObject();
-            w.WriteBoolean("simultaneousMoves", true);
+            // One $R= at a time: the board refuses a second move while an axis moves, so a host that would
+            // send both axes back to back (the Correctors plugin's probe) has to wait for the first to end.
+            w.WriteBoolean("simultaneousMoves", false);
             w.WriteBoolean("movesWhileTracking", true);
             w.WriteBoolean("movesWhileSlewing", false);
             w.WriteBoolean("canStop", true);

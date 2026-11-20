@@ -27,6 +27,21 @@ public class SetupHttpTest {
     }
 
     [Test]
+    public async Task Tier_2_is_offered_unless_the_page_turns_it_off() {
+        using var factory = ServerFactory.WithCalibratedBoard();
+        var client = factory.CreateClient();
+        (await GetJson(client, "/api/config")).GetProperty("offerTier2").GetBoolean().Should().BeTrue("the default");
+        await client.Connect();
+        var response = await client.PostAsJsonAsync("/api/config", new { link = "tcp", address = "10.0.0.5", name = "OAPA", offerTier2 = false });
+        response.EnsureSuccessStatusCode();
+        JsonDocument.Parse(File.ReadAllText(factory.ConfigPath)).RootElement.GetProperty("offerTier2").GetBoolean().Should().BeFalse();
+        // The link change waits for the next connect; the tiers offered change at once.
+        var reply = await client.Put("action", ("Action", "PolarAlign:Info"), ("Parameters", ""));
+        var info = JsonDocument.Parse(reply.GetProperty("Value").GetString()!).RootElement;
+        info.GetProperty("tiers").EnumerateArray().Select(t => t.GetInt32()).Should().Equal(new[] { 1 }, "the host drives every move when the board's own loop is not offered");
+    }
+
+    [Test]
     public async Task Post_config_while_connected_is_saved_but_not_applied() {
         using var factory = ServerFactory.WithCalibratedBoard();
         var client = factory.CreateClient();
