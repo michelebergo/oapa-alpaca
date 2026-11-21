@@ -66,18 +66,17 @@ point the page at `/dev/serial/by-id/...` so a re-enumerated USB converter keeps
   corrections than the page allows, never larger.
 - Alpaca error numbers as in the contract; a lost link fails the request with HTTP 503.
 
-The Aligner (the ASCOM IAlignerV1 draft as of 18 November 2026,
+The Aligner (the ASCOM IAlignerV1 draft as of 20 November 2026,
 <https://ascom-standards.org/ialigner>, Alpaca definition at
 <https://ascom-standards.org/apialigner>), interface version 1:
 
-- `configuration` answers one object: `AlignerPurpose` 1 (polar aligner), `Units` 1
+- `configuration` answers one object: `AlignerType` 1 (polar aligner), `Units` 1
   (degrees), `CanMoveX` and `CanMoveY` true, `CanMoveZ` false, `CanFindHome` true,
   `CanMoveAbsolute` and `CanSync` false, `XMaxMove` and `YMaxMove` the board's move cap in
   degrees, `XResolution` and `YResolution` one motor step in degrees (from the calibration
-  factors, so left out until the board has them), `BacklashCompensation` true and
-  `CanSetBacklash` false (the board takes up its backlash on every reversal, with the `$B=`
-  values a host pushed; `setbacklashcompensation` is not implemented); the travel limits are
-  left out because the board does not know them.
+  factors, so left out until the board has them) and `BacklashCompensation` true (the board
+  takes up its backlash on every reversal, with the `$B=` values a host pushed); the travel
+  limits are left out because the board does not know them.
 - `move` takes `X`, `Y`, `Z` in degrees (`Z` must be 0) and sends one `$R=` with both
   axes; positive X increases the azimuth of the polar axis (clockwise seen from above),
   positive Y raises it. A zero move completes at once without reaching the board.

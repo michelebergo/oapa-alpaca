@@ -4,7 +4,7 @@ using OapaAlpaca.Core;
 namespace OapaAlpaca;
 
 /// <summary>
-/// The board as an Alpaca Aligner, after the ASCOM IAlignerV1 draft (ascom-standards.org/ialigner, 18/11/2026):
+/// The board as an Alpaca Aligner, after the ASCOM IAlignerV1 draft (ascom-standards.org/ialigner, 20/11/2026):
 /// a polar aligner working in degrees, X azimuth and Y altitude, relative moves only. Positive X increases
 /// the azimuth of the polar axis (clockwise seen from above), positive Y raises it: the board's own rule.
 /// A failed move is reported by <c>ismoving</c> as a driver error, with the axis and the board's reason,
@@ -13,8 +13,7 @@ namespace OapaAlpaca;
 public static class AlignerEndpoints {
     public const string Prefix = "/api/v1/aligner/0/";
     public const int InterfaceVersion = 1;
-    public const int ConfigurationVersion = 1;
-    private const int PolarAligner = 1; // AlignerPurpose
+    private const int PolarAligner = 1; // AlignerType
     private const int Degrees = 1;      // AlignerUnits
 
     public static void Map(WebApplication app, OapaDevice device, string version) {
@@ -22,7 +21,6 @@ public static class AlignerEndpoints {
             (action, _) => throw new DeviceException(DeviceErrorKind.ActionNotImplemented, $"{action} is not implemented: the PolarAlign actions are on the Switch device"));
 
         app.MapGet(Prefix + "configuration", (HttpRequest r) => Alpaca.Run(r, () => Configuration(device.Info)));
-        app.MapGet(Prefix + "configurationversion", (HttpRequest r) => Alpaca.Run(r, () => ConfigurationVersion));
         app.MapGet(Prefix + "ismoving", (HttpRequest r) => Alpaca.Run(r, () => IsMoving(device.Status())));
         app.MapGet(Prefix + "xposition", (HttpRequest r) => Alpaca.Run(r, () => Position(device.Status().Az, "X")));
         app.MapGet(Prefix + "yposition", (HttpRequest r) => Alpaca.Run(r, () => Position(device.Status().Alt, "Y")));
@@ -39,7 +37,6 @@ public static class AlignerEndpoints {
         }));
         app.MapPut(Prefix + "moveabsolute", (HttpRequest r) => Alpaca.Fail(r, Alpaca.NotImplemented, "moveabsolute is not implemented: the board has no absolute position (CanMoveAbsolute is false)"));
         app.MapPut(Prefix + "sync", (HttpRequest r) => Alpaca.Fail(r, Alpaca.NotImplemented, "sync is not implemented (CanSync is false)"));
-        app.MapPut(Prefix + "setbacklashcompensation", (HttpRequest r) => Alpaca.Fail(r, Alpaca.NotImplemented, "setbacklashcompensation is not implemented: the board always compensates its backlash (CanSetBacklash is false)"));
         app.MapPut(Prefix + "halt", (HttpRequest r) => Alpaca.Run(r, () => { device.Stop(); return (object?)null; }));
         app.MapPut(Prefix + "findhome", (HttpRequest r) => Alpaca.Run(r, () => { device.Home(); return (object?)null; }));
 
@@ -65,18 +62,17 @@ public static class AlignerEndpoints {
     /// IAlignerConfigurationV1 in one object. Left out when the board does not know them, as the Alpaca
     /// definition allows: the travel limits, and the resolution until the board has calibration factors.
     /// The board takes up its own backlash on every reversal (the <c>$B=</c> values a host pushed), so
-    /// compensation is always on and a client cannot switch it.
+    /// compensation is always on; the interface has no setter for it.
     /// </summary>
     private static Dictionary<string, object> Configuration(DeviceInfo info) {
         var c = new Dictionary<string, object> {
-            ["AlignerPurpose"] = PolarAligner,
+            ["AlignerType"] = PolarAligner,
             ["BacklashCompensation"] = true,
             ["CanFindHome"] = true,
             ["CanMoveAbsolute"] = false,
             ["CanMoveX"] = true,
             ["CanMoveY"] = true,
             ["CanMoveZ"] = false,
-            ["CanSetBacklash"] = false,
             ["CanSync"] = false,
             ["Units"] = Degrees,
             ["XMaxMove"] = info.MaxMove / 60,

@@ -129,7 +129,7 @@ also accepted by clients; use 0x40C).
   with the board's reason; cleared by the next `Move`, `Stop` or `Home` on that axis.
 - `alignment`: present always (Tier 2 is always available); mapping in 4.4.
 
-### 3.5 The Aligner device (ASCOM IAlignerV1 draft, as of 18/11/2026)
+### 3.5 The Aligner device (ASCOM IAlignerV1 draft, as of 20/11/2026)
 
 Added 16/11/2026, the day after Peter Simpson posted the draft
 (<https://ascom-standards.org/ialigner>, Alpaca definition
@@ -142,18 +142,17 @@ Switch: `SupportedActions` of the Aligner is empty and `Action` answers 0x40C.
 | Member | Value |
 |---|---|
 | `InterfaceVersion` | 1 |
-| `Configuration` | one object: `AlignerPurpose` 1 (PolarAligner), `Units` 1 (Degrees), `CanMoveX` and `CanMoveY` true, `CanMoveZ` false, `CanFindHome` true, `CanMoveAbsolute` and `CanSync` false, `XMaxMove` and `YMaxMove` = the move cap of section 3.3 divided by 60, `XResolution` and `YResolution` = one step of the factor (1 / factor arcminutes) divided by 60, `BacklashCompensation` true, `CanSetBacklash` false. Omitted, as the Alpaca definition allows for what a device does not support: the travel limits (the board does not know them) and the resolution while the board has no factors. `CanHalt` is gone since 17/11/2026: `Halt` is mandatory. |
-| `ConfigurationVersion` | 1 |
+| `Configuration` | one object: `AlignerType` 1 (PolarAligner), `Units` 1 (Degrees), `CanMoveX` and `CanMoveY` true, `CanMoveZ` false, `CanFindHome` true, `CanMoveAbsolute` and `CanSync` false, `XMaxMove` and `YMaxMove` = the move cap of section 3.3 divided by 60, `XResolution` and `YResolution` = one step of the factor (1 / factor arcminutes) divided by 60, `BacklashCompensation` true. Omitted, as the Alpaca definition allows for what a device does not support: the travel limits (the board does not know them) and the resolution while the board has no factors. `CanHalt` is gone since 17/11/2026: `Halt` is mandatory. `AlignerPurpose` became `AlignerType`, and `CanSetBacklash`, the backlash setter and `ConfigurationVersion` left the draft on 20/11/2026 (the setter had no use case: `Configuration` is read once; the version was redundant with `InterfaceVersion`). |
 | `Move(X, Y, Z)` | degrees; `Z` must be 0 (`InvalidValue` otherwise, as for a non-finite amount or one beyond `XMaxMove`); one `$R=` with both axes, `X` azimuth and `Y` altitude, times 60. A zero move on both axes sends nothing and completes at once. Not calibrated: `InvalidOperation`. |
 | `Halt` | `!`, both axes; afterwards `IsMoving` is false, the move cancelled, not failed |
 | `FindHome` | `$H` |
 | `IsMoving` | true while the board moves or homes; after a move that failed it throws `DriverException` (0x500) naming the axis and the board's reason, on every read until the next `Move` (a zero move will do), `Halt`, `FindHome` or reconnect: the rule of IAxisAligner draft 4, so that a client can tell a finished move from one that stopped |
 | `XPosition`, `YPosition` | degrees from the board's zero, motor positions: across a reversal they include the board's backlash take-up (bench, 16/11/2026: 0.01° asked, 0.01° in the same direction, up to 0.06° at a reversal); `PropertyNotImplemented` (0x400) while the board has no factors |
-| `ZPosition`, `MoveAbsolute`, `Sync`, `SetBacklashCompensation`, `Command*` | not implemented (0x400); the board always compensates its own backlash (the `$B=` values a host pushed, kept in its RAM), so there is nothing for a client to switch |
+| `ZPosition`, `MoveAbsolute`, `Sync`, `Command*` | not implemented (0x400); the board always compensates its own backlash (the `$B=` values a host pushed, kept in its RAM) |
 | `DeviceState` | empty while disconnected; otherwise `TimeStamp`, `IsMoving` (left out while a failure is pending) and the two positions when calibrated |
 
 The sign rule is the board's own (section 2) and the one the IAxisAligner draft 4 gives
-for `AlignerPurpose = PolarAligner`: positive X increases the azimuth of the polar axis
+for `AlignerType = PolarAligner`: positive X increases the azimuth of the polar axis
 (clockwise seen from above), positive Y raises it.
 
 ## 4. Mapping onto the OAPA protocol

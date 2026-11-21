@@ -37,7 +37,8 @@ public class AlignerHttpTest {
         (await client.GetAt(A, "configuration")).ErrorNumber().Should().Be(0x407);
         await client.PutAt(A, "connected", ("Connected", "true"));
         var c = (await client.GetAt(A, "configuration")).GetProperty("Value");
-        c.GetProperty("AlignerPurpose").GetInt32().Should().Be(1);
+        c.GetProperty("AlignerType").GetInt32().Should().Be(1, "PolarAligner");
+        c.TryGetProperty("AlignerPurpose", out _).Should().BeFalse("renamed AlignerType on 20/11/2026");
         c.GetProperty("Units").GetInt32().Should().Be(1);
         c.GetProperty("CanMoveX").GetBoolean().Should().BeTrue();
         c.GetProperty("CanMoveY").GetBoolean().Should().BeTrue();
@@ -52,10 +53,9 @@ public class AlignerHttpTest {
         c.GetProperty("YResolution").GetDouble().Should().BeApproximately(1 / 40.10 / 60, 1e-7);
         c.TryGetProperty("ZResolution", out _).Should().BeFalse();
         c.GetProperty("BacklashCompensation").GetBoolean().Should().BeTrue("the board takes up its backlash on every reversal");
-        c.GetProperty("CanSetBacklash").GetBoolean().Should().BeFalse();
+        c.TryGetProperty("CanSetBacklash", out _).Should().BeFalse("the backlash setter left the interface on 20/11/2026");
         c.TryGetProperty("XMinPosition", out _).Should().BeFalse("the board does not know its travel");
         c.TryGetProperty("ZMaxMove", out _).Should().BeFalse();
-        (await client.GetAt(A, "configurationversion")).GetProperty("Value").GetInt32().Should().Be(1);
     }
 
     [Test]
@@ -169,12 +169,13 @@ public class AlignerHttpTest {
     }
 
     [Test]
-    public async Task Set_backlash_compensation_is_not_implemented_and_reaches_nothing() {
+    public async Task Members_dropped_from_the_draft_on_20_11_2026_are_unknown_and_reach_nothing() {
         using var factory = ServerFactory.WithCalibratedBoard();
         var client = factory.CreateClient();
         await client.PutAt(A, "connected", ("Connected", "true"));
         factory.Link.Sent.Clear();
-        (await client.PutAt(A, "setbacklashcompensation", ("State", "false"))).ErrorNumber().Should().Be(0x400, "CanSetBacklash is false");
+        (await client.GetAt(A, "configurationversion")).ErrorNumber().Should().Be(0x400, "redundant with InterfaceVersion");
+        (await client.PutAt(A, "setbacklashcompensation", ("State", "false"))).ErrorNumber().Should().Be(0x400, "the setter and CanSetBacklash are gone");
         factory.Link.Sent.Should().BeEmpty();
     }
 
